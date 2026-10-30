@@ -33,7 +33,7 @@
     "./schema/cige-1.schema.json": "./schema/cige-1.schema.json"
   },
   "bin": {
-    "cige": "./dist/bin.js"
+    "cige": "dist/bin.js"
   },
   "files": [
     "dist",
