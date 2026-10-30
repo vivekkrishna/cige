@@ -81,7 +81,7 @@ function e2eBin(): string {
       if (bin !== undefined) return path.resolve(dir, bin);
     }
     const parent = path.dirname(dir);
-    if (parent === dir) throw new Error('cannot find the e2e command; install e2e beside cige');
+    if (parent === dir) throw new Error('cannot find the e2e command; install e2e beside e2e-cige');
     dir = parent;
   }
 }

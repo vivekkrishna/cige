@@ -14,14 +14,14 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { cige, type CigeRunSummary } from '../src/reporter.ts';
 
-// Inside the package, so `e2e` and `cige` resolve the way they do for a user.
+// Inside the package, so `e2e` and `e2e-cige` resolve the way they do for a user.
 const PROJECT = fileURLToPath(new URL('./tmp-projects/suite/', import.meta.url));
 
 const BIN = fileURLToPath(new URL('../dist/bin.js', import.meta.url));
 
 const CONFIG = `import type { E2EConfig, StepExecutor } from 'e2e';
 import { defineEngine } from 'e2e/engine';
-import { cige } from 'cige';
+import { cige } from 'e2e-cige';
 import cigeConfig from './cige.config.ts';
 
 const root = { ref: { id: 'root', revision: '' }, role: 'window' as const, children: [] };
@@ -91,7 +91,7 @@ export default {
 // One config for the suite, the reporter, and the cige command, the way the docs set it up.
 const CIGE_CONFIG = `import { writeFileSync } from 'node:fs';
 import { AgentError } from 'e2e';
-import { defineCige } from 'cige';
+import { defineCige } from 'e2e-cige';
 
 export default defineCige({
   cases: 'cases/*.cige.json',
@@ -131,7 +131,7 @@ export default defineCige({
 });
 `;
 
-const SUITE = `import { cigeSuite } from 'cige';
+const SUITE = `import { cigeSuite } from 'e2e-cige';
 import config from '../cige.config.ts';
 
 cigeSuite(config);
@@ -237,7 +237,7 @@ const CASES: Record<string, object> = {
 };
 
 const SERIAL_SUITE = `import { describe } from 'e2e';
-import { cigeSuite } from 'cige';
+import { cigeSuite } from 'e2e-cige';
 
 describe('checkout flow', { serial: true }, () => {
   cigeSuite('serial-cases/*.cige.json', { root: new URL('..', import.meta.url) });
@@ -400,7 +400,7 @@ describe('cigeSuite through the runner', () => {
       target: 'memory',
       agent: 'default',
       attempts: 1,
-      classification: { source: 'cige', confidence: 'heuristic', signals: ['status:passed'] },
+      classification: { source: 'e2e-cige', confidence: 'heuristic', signals: ['status:passed'] },
       evidence: { report: '.e2e/report.json' },
     });
     expect(summaries.pass).not.toHaveProperty('failureType');

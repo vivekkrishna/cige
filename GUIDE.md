@@ -13,7 +13,7 @@ each one changes for a different reason:
 | Guardrails | What the agent must never do | Only to get stricter |
 | Execution | The first path to try | Whenever the product's flow changes |
 
-`cige` runs `.cige.json` cases as e2e tests and writes one run
+`e2e-cige` runs `.cige.json` cases as e2e tests and writes one run
 summary per result. The `cige` agent skill reads it, classifies the failure,
 and makes only the repair that kind of failure allows.
 
@@ -27,14 +27,14 @@ TypeScript control flow in `*.e2e.ts` files. Both kinds run in one suite.
 ## Install
 
 ```bash
-npm install -D cige
+npm install -D e2e-cige e2e
 ```
 
 ## Write a case
 
 ```json title="tests/cige/checkout.cige.json"
 {
-  "$schema": "../../node_modules/cige/schema/cige-1.schema.json",
+  "$schema": "../../node_modules/e2e-cige/schema/cige-1.schema.json",
   "id": "checkout-discount",
   "Context": {
     "system": "Shop web app",
@@ -76,7 +76,7 @@ in `cige.config.ts`. The suite, the reporter, and the `cige` command
 all read it. Set `root` so all three find the same files.
 
 ```ts title="cige.config.ts"
-import { defineCige } from 'cige';
+import { defineCige } from 'e2e-cige';
 
 export default defineCige({
   cases: 'tests/cige/*.cige.json',
@@ -111,7 +111,7 @@ export default defineCige({
 Register the cases from a test file, and add the reporter:
 
 ```ts title="tests/cige.e2e.ts"
-import { cigeSuite } from 'cige';
+import { cigeSuite } from 'e2e-cige';
 import cigeConfig from '../cige.config.ts';
 
 cigeSuite(cigeConfig);
@@ -120,7 +120,7 @@ cigeSuite(cigeConfig);
 ```ts title="e2e.config.ts"
 import type { E2EConfig } from 'e2e';
 import { web } from '@e2e-dev/web';
-import { cige } from 'cige';
+import { cige } from 'e2e-cige';
 import { gateway } from 'ai';
 import cigeConfig from './cige.config.ts';
 

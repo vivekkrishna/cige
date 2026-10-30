@@ -1,11 +1,14 @@
-# cige
+# e2e-cige
 
 A community package for [e2e](https://github.com/tester-army/e2e), first
 proposed as [tester-army/e2e#1272](https://github.com/tester-army/e2e/pull/1272).
 
 ```bash
-npm i -D cige e2e
+npm i -D e2e-cige e2e
 ```
+
+The command is `cige`: `npx cige check`, `npx cige diff`, and the rest under
+[Commands](#commands).
 
 Run [CIGE](https://www.amazon.science/publications/cige-an-agentic-ai-test-case-standard)
 test cases with e2e. A CIGE case keeps the stable meaning of a test apart
@@ -250,7 +253,7 @@ OS authority.
 
 ```ts
 import { AgentError } from 'e2e';
-import type { CigePlugin } from 'cige';
+import type { CigePlugin } from 'e2e-cige';
 
 export const shop: CigePlugin = {
   name: 'shop',

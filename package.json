@@ -1,5 +1,5 @@
 {
-  "name": "cige",
+  "name": "e2e-cige",
   "version": "0.1.0",
   "description": "CIGE test cases for e2e: Context, Intent, Guardrails, and Execution as portable JSON, with run summaries, replay, and field-rule checks for self-healing agents",
   "keywords": [

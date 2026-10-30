@@ -40,7 +40,7 @@ export interface CigeRunSummary {
   readonly failedStep?: string;
   readonly failureType?: CigeFailureType;
   readonly classification: {
-    readonly source: 'cige';
+    readonly source: 'e2e-cige';
     readonly confidence: 'heuristic';
     readonly phase?: CigeClassification['phase'];
     readonly errorCode?: string;
@@ -171,7 +171,7 @@ function summarize<Fixtures>(
     ...(classification.failedStep === undefined ? {} : { failedStep: classification.failedStep }),
     ...(classification.failureType === undefined ? {} : { failureType: classification.failureType }),
     classification: {
-      source: 'cige',
+      source: 'e2e-cige',
       confidence: 'heuristic',
       ...(classification.phase === undefined ? {} : { phase: classification.phase }),
       ...(classification.errorCode === undefined ? {} : { errorCode: classification.errorCode }),

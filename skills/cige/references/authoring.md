@@ -51,7 +51,7 @@ that one pointer. Don't invent a path.
 
 ```json
 {
-  "$schema": "../../node_modules/cige/schema/cige-1.schema.json",
+  "$schema": "../../node_modules/e2e-cige/schema/cige-1.schema.json",
   "id": "checkout-discount",
   "Context": {
     "system": "Shop web app",
@@ -133,7 +133,7 @@ and the case's environment.
 `cige` share:
 
 ```ts
-import { defineCige } from 'cige';
+import { defineCige } from 'e2e-cige';
 
 export default defineCige({
   cases: 'tests/cige/*.cige.json',

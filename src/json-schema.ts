@@ -26,7 +26,7 @@ export function cigeJsonSchema(): Record<string, unknown> {
   const { $schema: draft, ...generated } = z.toJSONSchema(CigeFile, { target: 'draft-2020-12', io: 'input' });
   return {
     $schema: draft,
-    $id: 'https://unpkg.com/cige/schema/cige-1.schema.json',
+    $id: 'https://unpkg.com/e2e-cige/schema/cige-1.schema.json',
     title: 'CIGE test case, version 1',
     description:
       'An agentic test case in the CIGE standard: Context grounds the run, Intent states why the test exists and what a pass needs, Guardrails say what the agent must never do, and Execution is the first path to try. Every object also accepts x- keys (x-owner, x-ticket) for your own data; no other unknown key is allowed. See https://www.amazon.science/publications/cige-an-agentic-ai-test-case-standard.',
