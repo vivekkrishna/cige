@@ -1,0 +1,520 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://unpkg.com/cige/schema/cige-1.schema.json",
+  "title": "CIGE test case, version 1",
+  "description": "An agentic test case in the CIGE standard: Context grounds the run, Intent states why the test exists and what a pass needs, Guardrails say what the agent must never do, and Execution is the first path to try. Every object also accepts x- keys (x-owner, x-ticket) for your own data; no other unknown key is allowed. See https://www.amazon.science/publications/cige-an-agentic-ai-test-case-standard.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "cige": {
+      "description": "The version of this format.",
+      "type": "number",
+      "const": 1
+    },
+    "id": {
+      "description": "The stable id that tags the test (cige:<id>) and names its run summary; default a slug of the Intent statement.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+    },
+    "Context": {
+      "type": "object",
+      "properties": {
+        "system": {
+          "description": "The app or service under test.",
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "environment": {
+          "description": "Where the case runs: prose for the model, and the name of the environment in the CIGE config that replays it.",
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "actor": {
+          "description": "Who the agent acts as.",
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "agent": {
+          "description": "The configured agent (agents.<name>) or agents the test runs as.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+            },
+            {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+              }
+            }
+          ]
+        },
+        "platforms": {
+          "description": "The platforms the case runs on (web, ios, android); other targets skip it.",
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          }
+        },
+        "requires": {
+          "description": "Capabilities a target must have to run the case.",
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          }
+        },
+        "session": {
+          "description": "The session a setup test saved, restored before the case runs.",
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+        },
+        "open": {
+          "description": "The app path to open before the first step.",
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "tools": {
+          "description": "Documentation of the tools the agent has; configure them on the agents entry.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          }
+        },
+        "preconditions": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "hook": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+                    "description": "A hook your code passes to cigeSuite, run before the first step."
+                  },
+                  "description": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "\\S"
+                  }
+                },
+                "required": [
+                  "hook"
+                ],
+                "additionalProperties": false,
+                "patternProperties": {
+                  "^x-[A-Za-z0-9._-]+$": {}
+                }
+              }
+            ]
+          }
+        },
+        "facts": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          }
+        },
+        "prompts": {
+          "description": "Paths, relative to this file, of reusable context fragments.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          }
+        },
+        "specRef": {
+          "description": "A pointer to the spec that defines expected behavior, with {build} and {environment} filled in. Never sent to the model; read only to classify a failure.",
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "buildRef": {
+          "description": "A pointer to the build under test and its release notes, with {build} and {environment} filled in. Never sent to the model.",
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "expectedRef": {
+          "description": "A pointer to what the build is expected to produce (mocks, fixtures, golden data), with {build} and {environment} filled in. Never sent to the model.",
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        }
+      },
+      "additionalProperties": false,
+      "description": "The operating ground. system, environment, actor, preconditions, facts, and prompts become the test's agentContext, which every agent step reads, so they hold facts, never instructions. The rest pick where the case runs or point to the ground truth a failure is classified against. Any change to it needs a human's approval.",
+      "patternProperties": {
+        "^x-[A-Za-z0-9._-]+$": {}
+      }
+    },
+    "Intent": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "statement": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "\\S"
+            },
+            "success": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              }
+            },
+            "failure": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              }
+            },
+            "evidence": {
+              "description": "What a pass requires beyond the steps running: a judgment of the screen, or a hook in your code such as a backend check.",
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "\\S"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+                      },
+                      "assert": {
+                        "type": "string",
+                        "minLength": 1,
+                        "pattern": "\\S"
+                      },
+                      "vision": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "assert"
+                    ],
+                    "additionalProperties": false,
+                    "patternProperties": {
+                      "^x-[A-Za-z0-9._-]+$": {}
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+                      },
+                      "hook": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+                        "description": "A hook in the CIGE config that checks the evidence; it holds only when it returns true."
+                      },
+                      "description": {
+                        "type": "string",
+                        "minLength": 1,
+                        "pattern": "\\S"
+                      }
+                    },
+                    "required": [
+                      "hook"
+                    ],
+                    "additionalProperties": false,
+                    "patternProperties": {
+                      "^x-[A-Za-z0-9._-]+$": {}
+                    }
+                  }
+                ]
+              }
+            },
+            "judge": {
+              "description": "Judge the statement on screen once the evidence holds; default true.",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "statement"
+          ],
+          "additionalProperties": false,
+          "patternProperties": {
+            "^x-[A-Za-z0-9._-]+$": {}
+          }
+        }
+      ],
+      "description": "The outcome that must be true for the test to pass. Intent rarely changes, and no agent changes it without human approval."
+    },
+    "Guardrails": {
+      "description": "What the agent must never do. Every guardrail reaches the acting agent; one with deny is also checked by the runner after every action.",
+      "type": "array",
+      "items": {
+        "anyOf": [
+          {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+              },
+              "rule": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              "deny": {
+                "type": "object",
+                "properties": {
+                  "actions": {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  },
+                  "summary": {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  }
+                },
+                "additionalProperties": false,
+                "minProperties": 1,
+                "description": "Actions the runner stops the step on. actions: an action name (tap, navigate, tool:refund) or a prefix ending in *, the dependable rule. summary: case-insensitive regular expressions matched against the runner's prose for the action, best effort, since that prose can change.",
+                "patternProperties": {
+                  "^x-[A-Za-z0-9._-]+$": {}
+                }
+              }
+            },
+            "required": [
+              "rule"
+            ],
+            "additionalProperties": false,
+            "patternProperties": {
+              "^x-[A-Za-z0-9._-]+$": {}
+            }
+          }
+        ]
+      }
+    },
+    "Execution": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "anyOf": [
+          {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+              },
+              "step": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              "params": {
+                "description": "Values the step refers to as {name}.",
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {}
+              }
+            },
+            "required": [
+              "id",
+              "step"
+            ],
+            "additionalProperties": false,
+            "patternProperties": {
+              "^x-[A-Za-z0-9._-]+$": {}
+            }
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+              },
+              "verify": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              "vision": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id",
+              "verify"
+            ],
+            "additionalProperties": false,
+            "patternProperties": {
+              "^x-[A-Za-z0-9._-]+$": {}
+            }
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+              },
+              "use": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+              },
+              "with": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {}
+              }
+            },
+            "required": [
+              "id",
+              "use"
+            ],
+            "additionalProperties": false,
+            "description": "A step a plugin runs: use names a step kind a plugin in cige.config.ts registers, and with is its input. {name} placeholders in with's strings are filled by the variant.",
+            "patternProperties": {
+              "^x-[A-Za-z0-9._-]+$": {}
+            }
+          }
+        ]
+      },
+      "description": "The first path to try, one goal per entry. Steps are guidance a repair may change while Intent and Guardrails hold."
+    },
+    "Variants": {
+      "description": "Combinations of the case's dimensions. Each variant fills the {name} placeholders in Intent, Execution, and evidence, may pin where it runs, and runs as its own test tagged cige:<id>/<variant>. Intent, Guardrails, and evidence are shared.",
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+          },
+          "params": {
+            "description": "Values for the case's {name} placeholders. Every name must appear as a placeholder.",
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": [
+                "string",
+                "number",
+                "boolean"
+              ]
+            }
+          },
+          "platforms": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "\\S"
+            }
+          },
+          "agent": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+              },
+              {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+                }
+              }
+            ]
+          },
+          "session": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "additionalProperties": false,
+        "patternProperties": {
+          "^x-[A-Za-z0-9._-]+$": {}
+        }
+      }
+    }
+  },
+  "required": [
+    "Context",
+    "Intent",
+    "Execution"
+  ],
+  "additionalProperties": false,
+  "patternProperties": {
+    "^x-[A-Za-z0-9._-]+$": {}
+  }
+}
