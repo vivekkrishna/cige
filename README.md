@@ -1,7 +1,6 @@
 # e2e-cige
 
-A community package for [e2e](https://github.com/tester-army/e2e), first
-proposed as [tester-army/e2e#1272](https://github.com/tester-army/e2e/pull/1272).
+A community package for [e2e](https://github.com/tester-army/e2e).
 
 ```bash
 npm i -D e2e-cige e2e
