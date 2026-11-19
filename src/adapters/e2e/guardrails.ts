@@ -11,8 +11,8 @@
 
 import { AgentError, type ActionEvent, type ActionHook } from 'e2e';
 
-import type { CigeGuardrailViolation } from './plugins.ts';
-import { ID_PATTERN, type CigeGuardrail } from './schema.ts';
+import type { CigeGuardrailViolation } from '../../core/plugins.ts';
+import { ID_PATTERN, type CigeGuardrail } from '../../core/schema.ts';
 
 const VIOLATION = /CIGE guardrail ([A-Za-z0-9][A-Za-z0-9._-]*) violated/;
 

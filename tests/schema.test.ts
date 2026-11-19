@@ -2,8 +2,8 @@ import { readFileSync } from 'node:fs';
 import { Ajv2020 } from 'ajv/dist/2020.js';
 import { describe, expect, it } from 'vitest';
 
-import { cigeJsonSchema } from '../src/json-schema.ts';
-import { CigeValidationError, parseCige, slugify } from '../src/schema.ts';
+import { cigeJsonSchema } from '../src/core/json-schema.ts';
+import { CigeValidationError, parseCige, slugify } from '../src/core/schema.ts';
 
 function json(relative: string): unknown {
   const value: unknown = JSON.parse(readFileSync(new URL(relative, import.meta.url), 'utf8'));

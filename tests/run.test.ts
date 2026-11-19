@@ -1,18 +1,18 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { AgentError, isAgentError, type ActOptions, type AssertOptions, type TestAPI, type TestFixtures, type TestOptions } from 'e2e';
+import { AgentError, isAgentError, type ActionEvent, type ActOptions, type AssertOptions, type TestAPI, type TestFixtures, type TestOptions } from 'e2e';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { classifyResult } from '../src/classify.ts';
-import { createGuardrailMonitor, violatedGuardrail } from '../src/guardrails.ts';
-import type { CigeGuardrail } from '../src/schema.ts';
-import { loadCigeCases, loadCigeFile } from '../src/load.ts';
-import { actInstruction, GUARDRAIL_HEADING, intentAssertion, renderAgentContext } from '../src/render.ts';
-import { missingHooks, runCige } from '../src/run.ts';
-import { cigeSuite } from '../src/suite.ts';
-import { parseCige, type CigeTestCase } from '../src/schema.ts';
-import { expandVariants } from '../src/variants.ts';
+import { classifyResult } from '../src/adapters/e2e/report.ts';
+import { createGuardrailMonitor, violatedGuardrail } from '../src/adapters/e2e/guardrails.ts';
+import type { CigeGuardrail } from '../src/core/schema.ts';
+import { loadCigeCases, loadCigeFile } from '../src/core/load.ts';
+import { actInstruction, GUARDRAIL_HEADING, intentAssertion, renderAgentContext } from '../src/core/render.ts';
+import { missingHooks, runCige } from '../src/adapters/e2e/run.ts';
+import { cigeSuite } from '../src/adapters/e2e/suite.ts';
+import { parseCige, type CigeTestCase } from '../src/core/schema.ts';
+import { expandVariants } from '../src/core/variants.ts';
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -199,7 +199,8 @@ describe('limits and guards', () => {
 function broken(guardrails: readonly CigeGuardrail[], event: { action: string; summary: string }): string | undefined {
   const monitor = createGuardrailMonitor(guardrails)!;
   try {
-    void monitor({ index: 1, source: 'model', ...event });
+    // Any action name: e2e types each one's event, and the monitor reads only the name and the summary.
+    void monitor({ index: 1, source: 'model', ...event } as ActionEvent);
     return undefined;
   } catch (error) {
     return violatedGuardrail(error instanceof Error ? error.message : undefined);

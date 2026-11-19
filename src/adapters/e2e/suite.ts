@@ -11,21 +11,16 @@
 
 import { test as baseTest, type TestAPI, type TestFixtures, type TestOptions } from 'e2e';
 
-import { DEFAULT_CASES, type CigeConfig } from './config.ts';
-import { checkCases, loadCigeCases, type CigeRoot } from './load.ts';
-import { pluginProblems } from './plugins.ts';
-import { agentContextProblem, renderAgentContext } from './render.ts';
+import { DEFAULT_CASES, type CigeConfig } from '../../core/config.ts';
+import { checkCases, loadCigeCases, type CigeRoot } from '../../core/load.ts';
+import { pluginProblems } from '../../core/plugins.ts';
+import { agentContextProblem, renderAgentContext } from '../../core/render.ts';
+import { CigeValidationError, type CigeCase } from '../../core/schema.ts';
+import { CIGE_TAG, cigeTag } from '../../core/tags.ts';
+import { expandVariants } from '../../core/variants.ts';
 import { missingHooks, missingStepKinds, runCige, type CigeHooks } from './run.ts';
-import { CigeValidationError, type CigeCase } from './schema.ts';
-import { expandVariants } from './variants.ts';
 
-/** The tag every CIGE test carries. */
-export const CIGE_TAG = 'cige';
-
-/** The tag that selects one case by its id, or one of its variants. */
-export function cigeTag(id: string, variant?: string): string {
-  return variant === undefined ? `${CIGE_TAG}:${id}` : `${CIGE_TAG}:${id}/${variant}`;
-}
+export { CIGE_TAG, cigeTag } from '../../core/tags.ts';
 
 export interface CigeSuiteOptions<Fixtures = TestFixtures> {
   /** The `test` to register through, such as one from `test.extend()`; default the `test` from `e2e`. */

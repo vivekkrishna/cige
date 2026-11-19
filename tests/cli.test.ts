@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { main, type CliIo } from '../src/cli.ts';
+import { main, type CliIo } from '../src/cli/cli.ts';
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -39,22 +39,84 @@ function project(withConfig = true): string {
   return dir;
 }
 
-function io(cwd: string): CliIo & { out: string; err: string; runs: { args: readonly string[]; cwd: string }[] } {
+function io(cwd: string): CliIo & { out: string; err: string; runs: { args: readonly string[]; cwd: string; env?: Readonly<Record<string, string>> }[] } {
   const state = {
     cwd,
     out: '',
     err: '',
-    runs: [] as { args: readonly string[]; cwd: string }[],
+    runs: [] as { args: readonly string[]; cwd: string; env?: Readonly<Record<string, string>> }[],
     stdout: (text: string) => void (state.out += text),
     stderr: (text: string) => void (state.err += text),
-    runE2e: async (args: readonly string[], at: string) => {
+    runE2e: async (args: readonly string[], at: string, env?: Readonly<Record<string, string>>) => {
       (globalThis as { cigeEvents?: string[] }).cigeEvents?.push('e2e');
-      state.runs.push({ args, cwd: at });
+      state.runs.push({ args, cwd: at, ...(env === undefined ? {} : { env }) });
       return 1;
     },
   };
   return state;
 }
+
+describe('cige run', () => {
+  it('hands e2e the whole suite by its tag, or the selected cases by theirs, with the run options', async () => {
+    const dir = project();
+    const all = io(dir);
+    expect(await main(['run'], all)).toBe(1);
+    expect(all.runs).toEqual([{ args: ['run', '--config', 'e2e.staging.config.ts', '--tag', 'cige'], cwd: dir }]);
+    const one = io(dir);
+    expect(await main(['run', 'checkout/card', '--retries', '2', '--last-failed', '--', '--target', 'web'], one)).toBe(1);
+    expect(one.runs).toEqual([{ args: ['run', '--config', 'e2e.staging.config.ts', '--tag', 'cige:checkout/card', '--last-failed', '--retries', '2', '--target', 'web'], cwd: dir }]);
+  });
+
+  it('names e2e in its summary names when the case runs off its default runner', async () => {
+    const dir = project();
+    writeFileSync(path.join(dir, 'cige.config.mjs'), CONFIG.replace("cases: 'tests/cige/*.cige.json',", "cases: 'tests/cige/*.cige.json',\n  runner: 'vibium',"));
+    const state = io(dir);
+    await main(['run', '--runner', 'e2e'], state);
+    expect(state.runs).toEqual([{ args: ['run', '--config', 'e2e.staging.config.ts', '--tag', 'cige'], cwd: dir, env: { CIGE_RUNNER_SUFFIX: '1' } }]);
+  });
+
+  it("replays an auto case on its last run's runner, and refuses auto inside a matrix", async () => {
+    const dir = project();
+    // auto prefers this always-available owned runner, so only the last run can send the replay to e2e.
+    writeFileSync(
+      path.join(dir, 'cige.config.mjs'),
+      `export default {
+  cases: 'tests/cige/*.cige.json',
+  environments: { staging: { config: 'e2e.staging.config.ts', reset() {} } },
+  runner: 'auto',
+  auto: { prefer: ['owned'] },
+  runners: { owned: { name: 'owned', version: '1', availability: () => ({ ok: true }), capabilities: { platforms: ['web'], mode: 'owned', replay: 'agentic', actionEvents: false, networkDeny: false, archiveJudge: false, sessions: false }, start() { throw new Error('not in this test'); } } },
+};
+`,
+    );
+    mkdirSync(path.join(dir, '.e2e', 'cige'), { recursive: true });
+    writeFileSync(path.join(dir, '.e2e', 'cige', 'checkout.card.run-summary.json'), JSON.stringify({ testId: 'checkout', variant: 'card', runDate: '2026-11-18', result: 'fail', runner: { name: 'e2e', version: '0' } }));
+    const dry = io(dir);
+    expect(await main(['run', '--dry-run'], dry)).toBe(0);
+    expect(dry.out).toBe('case\trunner\twhy\ncheckout.card\towned\towned: first in auto.prefer among equals (owned, e2e)\n');
+    const replay = io(dir);
+    expect(await main(['replay', 'checkout', '--variant', 'card'], replay)).toBe(1);
+    expect(replay.runs).toHaveLength(1);
+    expect(replay.runs[0]!.args).toEqual(['run', '--config', 'e2e.staging.config.ts', '--tag', 'cige:checkout/card', '--no-cache']);
+    const selection = JSON.parse(readFileSync(replay.runs[0]!.env!.CIGE_RUNNER_SELECTION!, 'utf8'));
+    expect(selection).toEqual({ cases: { 'checkout.card': { runner: 'e2e', reason: 'e2e: the runner of its last run, so this repeats that run' } } });
+    const matrix = io(dir);
+    expect(await main(['run', '--runner', 'auto,owned'], matrix)).toBe(2);
+    expect(matrix.err).toContain("auto picks one runner per case; it can't join a matrix run");
+  });
+
+  it('refuses an unknown runner, a bad count, and an unknown case', async () => {
+    const unknown = io(project());
+    expect(await main(['run', '--runner', 'playwright'], unknown)).toBe(2);
+    expect(unknown.err).toContain('no runner "playwright"; known: e2e, vibium');
+    const count = io(project());
+    expect(await main(['run', '--workers', 'two'], count)).toBe(2);
+    expect(count.err).toContain('--workers takes a whole number');
+    const missing = io(project());
+    expect(await main(['run', 'refund'], missing)).toBe(2);
+    expect(missing.err).toContain('no CIGE case has the id "refund"');
+  });
+});
 
 describe('cige', () => {
   it('prints usage, and exits 2 on no command or an unknown one', async () => {

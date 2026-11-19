@@ -1,6 +1,6 @@
 ---
 name: cige
-description: Writes, classifies, and repairs CIGE test cases (Context, Intent, Guardrails, Execution) run by e2e-cige on e2e. Reads a run summary, decides whether a failure is the environment, a stale path, a product defect, or a false pass, then makes the one repair that kind allows, replays the case in its environment, and proves the change kept the Intent with cige diff. Use when a project has .cige.json files or a cige.config.ts, when asked to write an agentic test case, after a CIGE run, or when a CIGE test fails and someone asks to fix, heal, or triage it.
+description: Writes, classifies, and repairs CIGE test cases (Context, Intent, Guardrails, Execution) run by e2e-cige on e2e or Vibium. Reads a run summary, decides whether a failure is the environment, a stale path, a product defect, or a false pass, then makes the one repair that kind allows, replays the case in its environment, and proves the change kept the Intent with cige diff. Use when a project has .cige.json files or a cige.config.ts, when asked to write an agentic test case, after a CIGE run, or when a CIGE test fails and someone asks to fix, heal, or triage it.
 ---
 
 # CIGE: agentic test cases that repair safely
@@ -15,8 +15,11 @@ different owner:
 | Guardrails | What the agent must never do | A repair may only add rules or deny patterns |
 | Execution | The first path to try | A repair for a changed flow |
 
-`e2e-cige` runs each case as an e2e test and writes one run summary
-per result to `.e2e/cige/<id>.run-summary.json`. The `cige` command
+`e2e-cige` runs each case on a runner, e2e (as an e2e test) or Vibium
+(with `npx cige run`), and writes one run summary per result to
+`.e2e/cige/<id>.run-summary.json`; its `runner` field names which. A case
+run on a runner other than its default, or in a matrix run, gets the
+runner's name last: `<id>.vibium.run-summary.json`. The `cige` command
 replays a case in its environment, resolves its refs, and checks a change
 against the table above. Every step below goes through them; none needs a
 tool outside the project.

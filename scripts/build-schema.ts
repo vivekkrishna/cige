@@ -2,6 +2,6 @@
 
 import { writeFileSync } from 'node:fs';
 
-import { cigeJsonSchema } from '../src/json-schema.ts';
+import { cigeJsonSchema } from '../src/core/json-schema.ts';
 
 writeFileSync(new URL('../schema/cige-1.schema.json', import.meta.url), `${JSON.stringify(cigeJsonSchema(), null, 2)}\n`);

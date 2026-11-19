@@ -12,12 +12,12 @@ import { fileURLToPath } from 'node:url';
 import { run } from 'e2e/runner';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { cige, type CigeRunSummary } from '../src/reporter.ts';
+import { cige, type CigeRunSummary } from '../src/adapters/e2e/reporter.ts';
 
 // Inside the package, so `e2e` and `e2e-cige` resolve the way they do for a user.
 const PROJECT = fileURLToPath(new URL('./tmp-projects/suite/', import.meta.url));
 
-const BIN = fileURLToPath(new URL('../dist/bin.js', import.meta.url));
+const BIN = fileURLToPath(new URL('../dist/cli/bin.js', import.meta.url));
 
 const CONFIG = `import type { E2EConfig, StepExecutor } from 'e2e';
 import { defineEngine } from 'e2e/engine';
@@ -289,7 +289,8 @@ beforeAll(async () => {
 }, 120_000);
 
 afterAll(() => {
-  rmSync(PROJECT, { recursive: true, force: true });
+  // CIGE_KEEP_TMP=1 keeps the project, to compare its summaries across builds.
+  if (process.env.CIGE_KEEP_TMP !== '1') rmSync(PROJECT, { recursive: true, force: true });
 });
 
 describe('cigeSuite through the runner', () => {
@@ -451,6 +452,7 @@ describe('the reporter on a later run', () => {
       status: outcome.status,
       exitCode: outcome.exitCode,
       projectRoot: PROJECT,
+      redact: (text: string) => text,
       reportPath: outcome.reportPath,
       artifactsRoot: path.join(PROJECT, '.e2e', 'results'),
       aiTracePath: undefined,

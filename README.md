@@ -1,16 +1,23 @@
 # e2e-cige
 
-A community package for [e2e](https://github.com/tester-army/e2e).
+A community package for [e2e](https://github.com/tester-army/e2e), and the
+home of the CIGE model for any runner that adapts to it. e2e and
+[Vibium](https://vibium.com) adapters ship here; both are optional peers,
+so install the one you run:
 
 ```bash
-npm i -D e2e-cige e2e
+npm i -D e2e-cige e2e      # cases as e2e tests (hosted: e2e runs the loop)
+npm i -D e2e-cige vibium   # cases on Vibium (owned: cige run runs the loop)
 ```
+
+On e2e, also install the engine and model packages your e2e config names,
+such as `@e2e-dev/web` and `@ai-sdk/anthropic`.
 
 The command is `cige`: `npx cige check`, `npx cige diff`, and the rest under
 [Commands](#commands).
 
 Run [CIGE](https://www.amazon.science/publications/cige-an-agentic-ai-test-case-standard)
-test cases with e2e. A CIGE case keeps the stable meaning of a test apart
+test cases with e2e or Vibium, or let `auto` pick per case. A CIGE case keeps the stable meaning of a test apart
 from the parts that drift:
 
 - **Context**: where the test runs.
@@ -23,13 +30,30 @@ case, set up the config, and run it. This README is the reference.
 
 ## Contents
 
+- Entry points
 - Config
+- Runners
 - How a case runs
 - Variants
 - Run summaries
 - Commands
 - What `diff` blocks
 - Extending
+- Developing
+
+## Entry points
+
+| Import | Holds | Needs |
+| --- | --- | --- |
+| `e2e-cige` | The 0.x API: `defineCige`, `cigeSuite`, the `cige()` reporter, `runCige`, and the model, typed for e2e | e2e |
+| `e2e-cige/core` | The CIGE model with no runner in it: the schema and loader, variants, refs, `diff`, readiness, the plan, signals, `classify`, `auto` routing, and the summary writer | nothing |
+| `e2e-cige/runner` | What an adapter is built from: the runner contract, the shared `executePlan` loop, `CigeError`, and the conformance kit ([docs/adapters.md](docs/adapters.md)) | nothing |
+| `e2e-cige/e2e` | `e2eRunner`, `cigeSuite`, `cige()`, typed for e2e | e2e |
+| `e2e-cige/vibium` | `vibiumRunner`, which loads `vibium` only when a case runs on it | vibium, to run |
+| `cige` | The command: `run`, `replay`, `rejudge`, `env`, `refs`, `check`, `diff` | either runner, to run cases |
+
+Tested with e2e 0.21.3 and 0.23.1 (peer range `>=0.21.0 <1`) and Vibium
+26.11.16 (`>=26.11.16`), on Node `^22.22.3 || >=24.8.0`.
 
 ## Config
 
@@ -51,6 +75,91 @@ JavaScript, and package.json `imports` rather than tsconfig `paths`.
 | `outputDir` | Where summaries go; default `cige` beside `report.json` |
 | `e2eConfig` | The e2e config the cases run under, when it isn't the nearest `e2e.config.ts`; a replay passes it |
 | `configFile` | This file's path, when it isn't `cige.config.ts` at the project root; the commands a summary prints pass it as `--config` |
+| `runners` | The runners cases can run on, by name: `e2e: e2eRunner({ config })`, `vibium: vibiumRunner({...})`. See [Runners](#runners) |
+| `runner` | The runner a case runs on when `--runner` and its environment name none, or `auto` |
+| `auto` | `prefer`: the order `auto` breaks ties in; default `['e2e', 'vibium']` |
+
+An environment also takes `runner` (its cases' default runner) and
+`baseURL` (the site under test, for an owned runner). Its `config` is a
+deprecated alias for `e2eRunner({ config })`.
+
+## Runners
+
+The case never names a tool: Context names an environment, so one case
+runs anywhere. The runner is picked when the cases run: `--runner`, then
+the environment's `runner`, then the config's `runner`, then the config's
+only runner when it lists one, then e2e when it is installed, then Vibium.
+
+```ts
+// cige.config.ts
+import { defineCige } from 'e2e-cige';
+import { e2eRunner } from 'e2e-cige/e2e';
+import { vibiumRunner } from 'e2e-cige/vibium'; // loads vibium only when a case runs on it
+
+export default defineCige({
+  root: new URL('.', import.meta.url),
+  environments: { staging: { baseURL: 'https://staging.example.com', reset } },
+  runners: {
+    e2e: e2eRunner({ config: './e2e.config.ts' }),
+    vibium: vibiumRunner({ start: { headless: true }, model: { provider: 'anthropic', model: '…' }, judge: 'archive' }),
+  },
+  runner: 'e2e',
+});
+```
+
+| | e2e | Vibium |
+| --- | --- | --- |
+| Mode | Hosted: `cigeSuite` registers the cases, the `cige()` reporter writes summaries | Owned: `cige run` runs each case in its own session and writes summaries |
+| An act step | `agent.act`, with the Context as `agentContext` | `page.run`, with the Context and the step's values in the goal |
+| A verify, a judged evidence item | `agent.assert` | `page.check` |
+| The Intent | `agent.assert` on the screen | `browser.check` on the stopped recording (`judge: 'archive'`), apart from the agent that acted; or `page.check` (`judge: 'live'`) |
+| Repeat runs | Recorded and replayed, no model calls until the app changes | Agentic every run |
+| Platforms | Whatever the targets declare | Web |
+| Evidence | `report.json`, the trace, artifacts | The recording zip, a group per operation |
+
+Guardrails reach the acting agent as text on both. What each enforces:
+
+| Rule | e2e | Vibium |
+| --- | --- | --- |
+| Guardrail prose on every act step | Yes | Yes |
+| `deny.actions`, `deny.summary`, plugin `onAction` | Enforced after every action | Advisory: `run` is one call with no action events |
+| `x-deny-requests: ["POST **/payments*"]` on a guardrail | Advisory | Enforced: `page.route` aborts the request and the step fails as that guardrail's violation |
+| The agent stopping itself | `POLICY_DENIED` citing a guardrail | `run` ends `safety_stop` |
+
+`cige check` names each rule that is only advisory on the runner a case
+resolves to, with the platforms, sessions, and step kinds it can't serve.
+
+**`auto`.** Set `runner: 'auto'` (on the config or an environment) or pass
+`--runner auto`, and each case is routed to one runner just before it
+runs. A runner is left out when it isn't available now (not installed; for
+Vibium, no model, or no key for its provider), doesn't run the case's
+platforms, has no plugin for one of its step kinds, or can't restore its
+session. Of the rest it picks, in order: the one that only advises the
+fewest guardrails; one that didn't fail as infrastructure on its last run
+of the case; one that can replay its last passing run with no model calls
+(e2e); then `auto.prefer` order (default `['e2e', 'vibium']`). The summary
+records why in `runner.selected`, and its replay command names the runner,
+so `cige replay` and `cige rejudge` repeat the run they follow. `cige run
+--dry-run` prints each case's runner and reason without running anything,
+and a case no runner can serve stops the run before it starts. `auto`
+never switches runners inside a case or reruns a failure on another: that
+would hide the stale path or defect the case is there to catch.
+
+A hook gets the runner's fixtures (e2e's test fixtures, Vibium's
+`{ browser, page }`), the case, and `{ runner }`. A plugin's `steps` and
+`onAction` serve the runners in its `runners` (default `['e2e']`; `['*']`
+for a step that uses no fixtures); `context`, `classify`, `summarize`, and
+`readiness` serve every runner. Throw a `CigeError` from `e2e-cige` (or
+`e2e-cige/core`) in a hook meant for both runners; e2e reads it as the
+`AgentError` with that code.
+
+A matrix run, `cige run --runner e2e,vibium`, runs each case on both and
+writes `<id>.e2e.run-summary.json` and `<id>.vibium.run-summary.json`
+side by side: one case, two runners, comparable verdicts. A case run on a
+runner other than its default is named the same way, so it never
+overwrites the default runner's summary. Each runner clears only its own
+summaries. `e2e-cige/runner` holds the contract, the shared loop, and the
+conformance kit for a third-party adapter: see [docs/adapters.md](docs/adapters.md).
 
 ## How a case runs
 
@@ -104,7 +213,9 @@ more than once).
 | `specRef`, `buildRef`, `expectedRef` | The case's refs with `{build}` and `{environment}` filled in |
 | `resolveRefs`, `replay` | The commands that fetch the refs and replay the result |
 | `extensions` | The case's top-level `x-` keys, then each plugin's `summarize` fields under its name |
-| `evidence` | Pointers to `report.json`, the trace page, and the artifacts |
+| `runner` | The runner that produced it, `name` and `version`, and `selected` (`by: "auto"`, `reason`) when `auto` picked it |
+| `evidence` | Pointers to `report.json`, the trace page, and the artifacts; on Vibium, the `recording` zip and its `groups` |
+| `rejudged` | Set by `cige rejudge`: the run date and verdict it replaced |
 
 `failureType` reads the runner's own error class (`error.category` in
 `report.json`) and the step's status, so it follows new codes in e2e:
@@ -119,6 +230,24 @@ more than once).
 | A blocked `APP_NOT_OPEN`: the case never opened the app, usually a missing `Context.open` | Absent, no signal |
 | A guardrail violation, an agent's refusal citing one, an inconclusive judgment, a plugin step's plain throw | Absent; `guardrail-violation:<id>`, `guardrail-refused:<id>`, `inconclusive-evidence`, `plugin-step-failed:<id>` |
 
+On Vibium, from `run` and `check` results:
+
+| What Vibium says | `failureType` |
+| --- | --- |
+| `browser.start` fails, or the model provider can't be reached (`PROVIDER_ERROR`), or a precondition throws | `infrastructure` |
+| `check` `failed` on a verify, the Intent (judged on the recording), or an evidence hook returns not `true` | `product-defect` |
+| `run` `not_completed` with no reason | Absent, signal `goal-unreachable` |
+| `run` `action_limit` | Absent, signal `automation-limit` |
+| `run` `missing_information` | Absent, signal `missing-information`: check the seed data and the facts Context gives |
+| `run` `safety_stop` | Absent, `guardrail-refused[:<id>]` |
+| A request an `x-deny-requests` rule blocked | Absent, `guardrail-violation:<id>` |
+| `check` `inconclusive` | Absent, `inconclusive-evidence`; `archive-missing-evidence` too when the recording lacked what the judge needed |
+
+Vibium has no recorded path, so it never reports a stale step: a changed
+flow either heals in the run or ends `not_completed`. The routing for
+every runner lives in one function (`classify` in `e2e-cige/core`); an
+adapter only translates its outcomes into neutral signals.
+
 `guardrail-refused` is read from the model's own conclusion (a guardrail's
 id, or the word "guardrail"), so it is best effort, like `deny.summary`:
 read the trace before acting on it. `guardrail-violation` is the runner's
@@ -131,20 +260,33 @@ carries `missing-spec-ref` or `missing-build-ref`.
 ## Commands
 
 ```bash
-npx cige replay <id> [--variant <v>] [-- <e2e run options>]
+npx cige run [<id>...] [--runner <name>[,<name>]|auto] [--tag <tag>] [--workers <n>] [--retries <n>] [--last-failed] [--dry-run] [-- <e2e run options>]
+npx cige replay <id> [--variant <v>] [--runner <name>] [-- <e2e run options>]
+npx cige rejudge <id> [--variant <v>] [--runner vibium]
 npx cige env <provision|reset|teardown> <environment>
 npx cige refs <id> [--variant <v>] [--build <build>]
-npx cige check [--resolve] [--warn] [--json]
+npx cige check [--resolve] [--warn] [--json] [--runner <name>[,<name>]]
 npx cige diff [--base origin/main] [--json] [--allow-intent]
 ```
 
 Every command takes `--config <file>`; the default is `cige.config.ts` in
 the working directory.
 
+- `run` runs the cases on their runner. On e2e it hands off to
+  `e2e run --tag cige` (or one `--tag` per selected case) and exits with
+  e2e's code; on Vibium it runs each case here, with `--workers` (default
+  1, since hooks often share state), `--retries`, and `--last-failed`
+  (this runner's failed summaries), and exits 1 on any failure.
 - `replay` runs the declared environment's `reset` (it refuses one without
-  `reset`; declare a no-op one when it keeps no state), then
-  `e2e run --tag cige:<id> --no-cache` with the environment's `config`, and
-  exits with e2e's code. A case whose environment is prose runs as is.
+  `reset`; declare a no-op one when it keeps no state), then the case
+  alone: on e2e `e2e run --tag cige:<id> --no-cache` with the environment's
+  `config`, exiting with e2e's code; on Vibium, one session. A case whose
+  environment is prose runs as is.
+- `rejudge` judges the Intent again, as the case reads now, on the
+  recording the case's last Vibium run stored, without a browser, and
+  rewrites that summary with `rejudged`. Use it after an Intent edit, to
+  regrade old runs. It refuses a run that failed before its Intent was
+  judged: replay that one.
 - `env` runs one environment action and touches no case.
 - `refs` writes `<output>/cige/<id>.refs/`: `index.json` and a text file
   per resolver that returned text. A `pointer` alone is one to read
@@ -159,6 +301,7 @@ the working directory.
 | `environment-undeclared`, `environment-no-reset` | Declare the environment, with a `reset` |
 | `resolver-failed` | With `--resolve`, a resolver threw |
 | `plugin` | A plugin's `readiness` hook named it |
+| `runner` | The case's runner can't serve something it needs, or only advises a guardrail it can't enforce |
 
 ## What `diff` blocks
 
@@ -235,6 +378,8 @@ level. Keep secrets out: they are committed and copied into summaries.
 **Plugins.** `plugins` in the config, each with a `name` (lowercase letters,
 digits, dashes, not starting with `x-`) and optional hooks:
 
+Set `runners` on a plugin whose `steps` or `onAction` serve more than e2e.
+
 | Hook | Runs | Does |
 | --- | --- | --- |
 | `context` | When the suite registers the case | Adds lines to `agentContext`, the only way an `x-` field reaches the model |
@@ -289,3 +434,32 @@ The `cige` agent skill (`npx skills add vivekkrishna/cige`)
 reads the summaries, classifies each failure, and makes only the repair
 that kind allows. The file format is pinned by `schema/cige-1.schema.json`,
 generated from the loader's schema at build.
+
+## Developing
+
+```bash
+npm ci
+npm test          # builds first: the end-to-end tests run the built cige command
+npm run typecheck
+```
+
+The suite runs both runners without a model: e2e for real on an in-memory
+engine with a scripted executor, and Vibium as a scripted stand-in. It
+covers the conformance kit on both adapters, matrix runs, `auto`, replay,
+and rejudge.
+
+The live tests drive real browsers and a real model, so they cost model
+calls and run only when asked:
+
+```bash
+CIGE_LIVE=1 CIGE_VIBIUM_LIVE=1 \
+  ANTHROPIC_API_KEY=... VIBIUM_AI_PROVIDER=anthropic VIBIUM_AI_MODEL=<model> \
+  npx vitest run tests/modes.live.test.ts tests/vibium.live.test.ts
+```
+
+`tests/modes.live.test.ts` runs one local shop on every runner mode (e2e
+with its web engine, Vibium, a matrix, and `auto`); `tests/vibium.live.test.ts`
+covers Vibium's enforcement and refusals. Set `CIGE_LIVE_MODEL` to change
+the model the e2e side uses. The first run downloads the web engine's
+Chromium.
+

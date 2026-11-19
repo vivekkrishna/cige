@@ -6,14 +6,19 @@ Its only output is a classification and the one reference allowed to act.
 ## Read the summary
 
 Open `.e2e/cige/<id>.run-summary.json` (`<id>.<variant>...` for a
-variant). It points at everything else; read those only when a step below
-needs them.
+variant, `<id>...<runner>` for a run off the default runner or a matrix
+run). It points at everything else; read those only when a step below
+needs them. `runner.name` says which runner produced it: the rules below
+hold for both, and where the evidence lives differs (`evidence.trace` on
+e2e, `evidence.recording` and its `groups` on Vibium).
 
 | Field | Use |
 | --- | --- |
 | `failedStep` | The Execution id, evidence id, or `intent` that failed |
 | `failureType` | The reporter's first guess from the failing phase and step, plus the error's class and code. Absent when they can't decide |
-| `classification.signals` | What it read: `guardrail-violation:<id>`, `automation-limit`, `screen-only-evidence`, `missing-spec-ref` |
+| `classification.signals` | What it read: `guardrail-violation:<id>`, `automation-limit`, `screen-only-evidence`, `missing-spec-ref`; on Vibium also `missing-information` (the agent stopped for a fact the case doesn't give: check the seed data and Context's facts) and `archive-missing-evidence` (the recording lacked what the judge needed) |
+| `rejudged` | The Intent was judged again on the stored recording (`npx cige rejudge <id>`): the verdict it replaced |
+| `runner.selected` | Present when `auto` picked the runner: its reason. The verdict is that runner's; never rerun the case elsewhere to make it pass |
 | `specRef`, `buildRef`, `expectedRef` | Pointers to the ground truth |
 | `resolveRefs` | The command that fetches them into `.e2e/cige/<id>.refs/`; present only when the config has resolvers |
 | `evidence.trace` | The trace page: every step, action, and judgment |

@@ -1,6 +1,6 @@
 {
   "name": "e2e-cige",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "CIGE test cases for e2e: Context, Intent, Guardrails, and Execution as portable JSON, with run summaries, replay, and field-rule checks for self-healing agents",
   "keywords": [
     "e2e",
@@ -30,10 +30,26 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./core": {
+      "types": "./dist/core/index.d.ts",
+      "default": "./dist/core/index.js"
+    },
+    "./runner": {
+      "types": "./dist/runner/index.d.ts",
+      "default": "./dist/runner/index.js"
+    },
+    "./e2e": {
+      "types": "./dist/adapters/e2e/index.d.ts",
+      "default": "./dist/adapters/e2e/index.js"
+    },
+    "./vibium": {
+      "types": "./dist/adapters/vibium/index.d.ts",
+      "default": "./dist/adapters/vibium/index.js"
+    },
     "./schema/cige-1.schema.json": "./schema/cige-1.schema.json"
   },
   "bin": {
-    "cige": "dist/bin.js"
+    "cige": "dist/cli/bin.js"
   },
   "files": [
     "dist",
@@ -44,6 +60,7 @@
     "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && node scripts/build-schema.ts && tsc --project tsconfig.build.json",
     "prepublishOnly": "npm run build",
     "typecheck": "tsc --noEmit",
+    "pretest": "npm run build",
     "test": "vitest run"
   },
   "dependencies": {
@@ -52,13 +69,26 @@
     "zod": "4.6.7"
   },
   "peerDependencies": {
-    "e2e": ">=0.21.0 <1"
+    "e2e": ">=0.21.0 <1",
+    "vibium": ">=26.11.16"
+  },
+  "peerDependenciesMeta": {
+    "e2e": {
+      "optional": true
+    },
+    "vibium": {
+      "optional": true
+    }
   },
   "devDependencies": {
+    "@ai-sdk/anthropic": "4.0.96",
+    "@e2e-dev/web": "0.16.0",
     "@types/node": "26.6.5",
+    "ai": "7.0.162",
     "ajv": "8.20.0",
-    "e2e": "0.21.3",
+    "e2e": "0.23.1",
     "typescript": "7.0.2",
+    "vibium": "26.11.16",
     "vitest": "5.0.5"
   },
   "engines": {

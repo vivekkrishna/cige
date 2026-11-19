@@ -30,6 +30,9 @@ TypeScript control flow in `*.e2e.ts` files. Both kinds run in one suite.
 npm install -D e2e-cige e2e
 ```
 
+To run the cases on Vibium instead, or as well, see
+[Run the same cases on Vibium](#run-the-same-cases-on-vibium).
+
 ## Write a case
 
 ```json title="tests/cige/checkout.cige.json"
@@ -263,7 +266,53 @@ human's approval in CI; an agent never passes it.
 The [README](README.md)
 has the plugin reference and an example.
 
+## Run the same cases on Vibium
+
+[Vibium](https://vibium.com) drives a browser with an agent of its own and
+has no test runner, so the `cige` command runs the loop. The case doesn't
+change: only the config names the runner.
+
+```bash
+npm install -D e2e-cige vibium
+```
+
+```ts title="cige.config.ts"
+import { defineCige } from 'e2e-cige/core';
+import { vibiumRunner } from 'e2e-cige/vibium';
+
+export default defineCige({
+  root: new URL('.', import.meta.url),
+  hooks: { orderExists: async () => (await fetch('http://localhost:3000/api/orders/latest')).ok },
+  environments: { staging: { baseURL: 'http://localhost:3000', reset: () => fetch('http://localhost:3000/api/reset', { method: 'POST' }) } },
+  runners: { vibium: vibiumRunner({ model: { provider: 'anthropic', model: '<model id>' } }) },
+});
+```
+
+```bash
+npx cige check            # names what Vibium can't enforce or serve for each case
+npx cige run              # each case in its own session; summaries in .e2e/cige/
+npx cige rejudge checkout # after an Intent edit: judge it again on the stored recording
+```
+
+Each act step is one `page.run` with the Context and guardrails in its
+goal; each verify a `page.check`; and the Intent is judged with
+`browser.check` on the stopped recording, so the judge is not the agent
+that acted. A hook gets `{ browser, page }`. Vibium can't watch each action, so
+`deny.actions` rules are advisory there; to enforce one, add a request
+rule, which Vibium blocks with `page.route`:
+
+```json
+{ "id": "no-payments", "rule": "Never submit a real payment", "x-deny-requests": ["POST **/payments*"] }
+```
+
+With e2e installed too, `npx cige run --runner e2e,vibium` runs each case
+on both and writes their summaries side by side, and `npx cige run
+--runner auto` runs each case on the one that suits it best right now (the
+one that enforces its guardrails, is available, and can replay a passing
+run); add `--dry-run` to see each choice and why.
+
 ## Next
 
 - [Agents and personas](https://e2e.tester.army/docs/agents): Pin a case to an agent, or run it as several personas.
 - [The cige skill](skills/cige/SKILL.md): `npx skills add vivekkrishna/cige`, for a coding agent that classifies and repairs cases.
+- [Writing a runner adapter](docs/adapters.md): run CIGE cases on another tool, and prove it routes failures the same way.

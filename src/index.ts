@@ -5,38 +5,37 @@
  * `cige` command replays a case in its environment, resolves its refs,
  * and checks a change against the field rules. The standard:
  * https://www.amazon.science/publications/cige-an-agentic-ai-test-case-standard
+ *
+ * This entry is the 0.x API, bound to e2e as it always was. The runner-free
+ * model is `e2e-cige/core`, the runner contract `e2e-cige/runner`, and the
+ * adapters `e2e-cige/e2e` and `e2e-cige/vibium`.
  */
 
 export {
-  defineCige,
-  type CigeConfig,
   type CigeEnvironment,
   type CigeEnvironmentAction,
   type CigeRef,
   type CigeRefContext,
   type CigeRefResolver,
   type CigeRefs,
-} from './config.ts';
-export { cigeSuite, cigeTag, CIGE_TAG, type CigeSuiteOptions } from './suite.ts';
-export type {
-  CigeClassificationChange,
-  CigeGuardrailViolation,
-  CigePlugin,
-  CigeStepContext,
-  CigeStepRunner,
-  CigeUseStep,
-} from './plugins.ts';
-export type { CigeExtensions } from './extensions.ts';
-export type { CigeGap, CigeGapKind } from './check.ts';
-export { expandVariants } from './variants.ts';
-export { writeRefs, type CigeRefsIndex } from './refs.ts';
-export { diffCases, type CigeChange, type CigeChangeKind } from './diff.ts';
-export { runCige, type CigeHook, type CigeHooks, type RunCigeOptions } from './run.ts';
-export { loadCigeCases, loadCigeFile, type CigeRoot, type LoadOptions } from './load.ts';
-export { cige, type CigeReporterOptions, type CigeRunSummary } from './reporter.ts';
-export { classifyResult, type CigeClassification, type CigeFailureType, type CigePhase } from './classify.ts';
-export { createGuardrailMonitor } from './guardrails.ts';
-export { actInstruction, intentAssertion, renderAgentContext } from './render.ts';
+} from './core/config.ts';
+export { defineCige, type CigeConfig, type CigePlugin, type CigeStepContext, type CigeStepRunner } from './adapters/e2e/types.ts';
+export { cigeSuite, cigeTag, CIGE_TAG, type CigeSuiteOptions } from './adapters/e2e/suite.ts';
+export type { CigeClassificationChange, CigeGuardrailViolation, CigeUseStep } from './core/plugins.ts';
+export type { CigeExtensions } from './core/extensions.ts';
+export type { CigeGap, CigeGapKind } from './core/check.ts';
+export { expandVariants } from './core/variants.ts';
+export { writeRefs, type CigeRefsIndex } from './core/refs.ts';
+export { diffCases, type CigeChange, type CigeChangeKind } from './core/diff.ts';
+export { runCige, type CigeHook, type CigeHooks, type RunCigeOptions } from './adapters/e2e/run.ts';
+export { loadCigeCases, loadCigeFile, type CigeRoot, type LoadOptions } from './core/load.ts';
+export { cige, type CigeReporterOptions, type CigeRunSummary } from './adapters/e2e/reporter.ts';
+export { classifyResult } from './adapters/e2e/report.ts';
+export type { CigeClassification, CigeFailureType, CigePhase } from './core/classify.ts';
+export { createGuardrailMonitor } from './adapters/e2e/guardrails.ts';
+export { actInstruction, intentAssertion, renderAgentContext } from './core/render.ts';
+export { CigeError } from './core/errors.ts';
+export { e2eRunner } from './adapters/e2e/runner.ts';
 export {
   CigeValidationError,
   parseCige,
@@ -49,4 +48,4 @@ export {
   type CigePrecondition,
   type CigeTestCase,
   type CigeVariant,
-} from './schema.ts';
+} from './core/schema.ts';

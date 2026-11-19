@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { diffCases, diffSince, formatDiff } from '../src/diff.ts';
-import { parseCige, type CigeTestCase } from '../src/schema.ts';
+import { diffCases, diffSince, formatDiff } from '../src/core/diff.ts';
+import { parseCige, type CigeTestCase } from '../src/core/schema.ts';
 
 const BASE: CigeTestCase = {
   id: 'checkout',

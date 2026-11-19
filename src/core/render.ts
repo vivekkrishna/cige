@@ -7,7 +7,7 @@
  * the acting agent sees them. The judges decide from Intent and the screen.
  */
 
-import { pluginContext, type CigePlugin } from './plugins.ts';
+import { pluginContext, type AnyPlugin } from './plugins.ts';
 import type { CigeCase, CigeExecutionStep } from './schema.ts';
 
 /** `agentContext` holds at most 16 KiB. */
@@ -27,7 +27,7 @@ function bytes(text: string): number {
  * any lines the plugins' `context` hooks add. `x-` fields never appear here
  * unless a plugin puts them in.
  */
-export function renderAgentContext(testCase: CigeCase, plugins: readonly CigePlugin<never>[] = []): string | undefined {
+export function renderAgentContext(testCase: CigeCase, plugins: readonly AnyPlugin[] = []): string | undefined {
   const { context } = testCase;
   const lines: string[] = [];
   if (context.system !== undefined) lines.push(`System under test: ${context.system}`);
