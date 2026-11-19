@@ -1,9 +1,11 @@
 # e2e-cige
 
-A community package for [e2e](https://github.com/tester-army/e2e), and the
-home of the CIGE model for any runner that adapts to it. e2e and
-[Vibium](https://vibium.com) adapters ship here; both are optional peers,
-so install the one you run:
+[CIGE](https://www.amazon.science/publications/cige-an-agentic-ai-test-case-standard)
+test cases as portable JSON, for agents that run, classify, and repair
+tests. The CIGE model has no runner in it; adapters run the cases on
+[e2e](https://github.com/tester-army/e2e) and [Vibium](https://vibium.com),
+and any other runner can add one. Both runners are optional peers, so
+install the one you run:
 
 ```bash
 npm i -D e2e-cige e2e      # cases as e2e tests (hosted: e2e runs the loop)
@@ -16,9 +18,9 @@ such as `@e2e-dev/web` and `@ai-sdk/anthropic`.
 The command is `cige`: `npx cige check`, `npx cige diff`, and the rest under
 [Commands](#commands).
 
-Run [CIGE](https://www.amazon.science/publications/cige-an-agentic-ai-test-case-standard)
-test cases with e2e or Vibium, or let `auto` pick per case. A CIGE case keeps the stable meaning of a test apart
-from the parts that drift:
+Run the cases on e2e or Vibium, or let `auto` pick a runner per case. A
+CIGE case keeps the stable meaning of a test apart from the parts that
+drift:
 
 - **Context**: where the test runs.
 - **Intent**: why it exists and what a pass needs.

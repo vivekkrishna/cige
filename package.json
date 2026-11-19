@@ -1,9 +1,10 @@
 {
   "name": "e2e-cige",
   "version": "0.2.0",
-  "description": "CIGE test cases for e2e: Context, Intent, Guardrails, and Execution as portable JSON, with run summaries, replay, and field-rule checks for self-healing agents",
+  "description": "CIGE agentic test cases (Context, Intent, Guardrails, Execution) as portable JSON, run on e2e, Vibium, or any runner adapter, with run summaries, replay, and field-rule checks for self-healing agents",
   "keywords": [
     "e2e",
+    "vibium",
     "end-to-end",
     "testing",
     "agentic-testing",
