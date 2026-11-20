@@ -1,6 +1,6 @@
 ---
 name: cige
-description: Writes, classifies, and repairs CIGE test cases (Context, Intent, Guardrails, Execution) run by e2e-cige on e2e or Vibium. Reads a run summary, decides whether a failure is the environment, a stale path, a product defect, or a false pass, then makes the one repair that kind allows, replays the case in its environment, and proves the change kept the Intent with cige diff. Use when a project has .cige.json files or a cige.config.ts, when asked to write an agentic test case, after a CIGE run, or when a CIGE test fails and someone asks to fix, heal, or triage it.
+description: Writes, classifies, and repairs CIGE test cases (Context, Intent, Guardrails, Execution) run by e2e-cige on e2e, Vibium, or Playwright Test. Reads a run summary, decides whether a failure is the environment, a stale path, a product defect, or a false pass, then makes the one repair that kind allows, replays the case in its environment, and proves the change kept the Intent with cige diff. Use when a project has .cige.json files or a cige.config.ts, when asked to write an agentic test case, after a CIGE run, or when a CIGE test fails and someone asks to fix, heal, or triage it.
 ---
 
 # CIGE: agentic test cases that repair safely
@@ -15,8 +15,9 @@ different owner:
 | Guardrails | What the agent must never do | A repair may only add rules or deny patterns |
 | Execution | The first path to try | A repair for a changed flow |
 
-`e2e-cige` runs each case on a runner, e2e (as an e2e test) or Vibium
-(with `npx cige run`), and writes one run summary per result to
+`e2e-cige` runs each case on a runner, e2e (as an e2e test), Vibium
+(with `npx cige run`), or Playwright Test (a `*.cige.spec.ts` file whose
+bindings are the steps as Playwright code), and writes one run summary per result to
 `.e2e/cige/<id>.run-summary.json`; its `runner` field names which. A case
 run on a runner other than its default, or in a matrix run, gets the
 runner's name last: `<id>.vibium.run-summary.json`. The `cige` command
@@ -33,6 +34,7 @@ tool outside the project.
 | The classification is `infrastructure` | [references/recover.md](references/recover.md) |
 | The classification is `outdated-test-logic`, or a pass was a false positive | [references/repair.md](references/repair.md) |
 | The classification is `product-defect` | [references/escalate.md](references/escalate.md) |
+| The case runs on Playwright Test (`runner.name` is `playwright`, or a `*.cige.spec.ts` binds it): compiling its steps, repairing a binding | [references/playwright.md](references/playwright.md), with the reference above |
 
 Always classify first. A repair you were not routed to is how a bug gets
 hidden: a failing check rewritten until it passes.

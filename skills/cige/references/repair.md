@@ -17,6 +17,10 @@ You may rewrite `Execution` only.
 3. Look at the live app before you write a step: start `e2e mcp` (the e2e
    skill's `mcp` topic) in the case's environment, open `Context.open`, and
    walk the flow. Don't guess at a UI from the old steps.
+   On Playwright Test the steps are code: repair the binding of
+   `failedStep` in the case's `.cige.spec.ts` file, as `playwright.md`
+   says, and leave the `.cige.json` Execution as it is unless the flow's
+   steps themselves changed.
 4. Edit the steps. Keep the ids of the steps that still mean the same
    thing; give a new step a new id. A step is one goal, not a click
    sequence. A `use` step is Execution too: you may change its `with` or

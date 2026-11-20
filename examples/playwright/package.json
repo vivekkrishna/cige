@@ -1,0 +1,15 @@
+{
+  "name": "cige-playwright-example",
+  "private": true,
+  "type": "module",
+  "description": "CIGE cases on Playwright Test: a tiny shop, three cases, and their compiled specs",
+  "scripts": {
+    "test": "playwright test",
+    "check": "cige check",
+    "compile": "cige compile"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.65.0",
+    "e2e-cige": "file:../.."
+  }
+}

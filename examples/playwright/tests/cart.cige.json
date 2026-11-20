@@ -1,0 +1,22 @@
+{
+  "id": "cart",
+  "Context": {
+    "system": "Example shop (server.mjs)",
+    "environment": "local",
+    "preconditions": [{ "hook": "freshShop", "description": "The shop starts with an empty cart" }],
+    "open": "/",
+    "specRef": "SPEC.md#cart",
+    "buildRef": "CHANGELOG.md"
+  },
+  "Intent": {
+    "statement": "A shopper can add a book to the cart",
+    "success": ["The cart holds exactly one Field Guide"],
+    "judge": false,
+    "evidence": [{ "id": "cart-record", "hook": "cartHasOneBook", "description": "The cart API lists BOOK-1 and nothing else" }]
+  },
+  "Guardrails": ["Never use a real payment card"],
+  "Execution": [
+    { "id": "e1", "step": "Add the Field Guide to the cart" },
+    { "id": "e2", "verify": "The cart count in the header shows 1" }
+  ]
+}

@@ -1,26 +1,30 @@
 /**
  * The `cige` command: what an agent (or a person) runs between CIGE
- * runs. `run` runs the cases on a runner (e2e hands off to `e2e run`;
- * Vibium runs in the owned loop), `rejudge` judges a stored recording again,
+ * runs. `run` runs the cases on a runner (e2e hands off to `e2e run`,
+ * Playwright to `playwright test`; Vibium runs in the owned loop), `rejudge`
+ * judges a stored recording again,
  * `replay` reruns one case in its environment after a repair, `env`
  * provisions, resets, or tears an environment down without touching any
  * case, `refs` fetches the spec, release notes, and expected output a
  * classifier compares a failure with, `check` lists what each case lacks
- * for that before anything fails, and `diff` checks a change against the
- * field rules. It reads `cige.config.ts` from the working directory.
+ * for that before anything fails, `compile` writes a case's Playwright spec
+ * stubs, `healer` adds the CIGE rule to Playwright's healer agent, and
+ * `diff` checks a change against the field rules. It reads `cige.config.ts`
+ * from the working directory.
  */
 
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 
 import { capabilityGaps, readinessGaps, type CigeGap } from '../core/check.ts';
 import { DEFAULT_CASES, type CigeConfig } from '../core/config.ts';
-import type { CigeRunner } from '../core/contract.ts';
+import type { CigeLaunchRequest, CigeRunner } from '../core/contract.ts';
 import { diffSince, formatDiff } from '../core/diff.ts';
-import { loadCigeCases } from '../core/load.ts';
+import { hostedEnv } from '../core/hosted.ts';
+import { loadCigeCases, rootDir } from '../core/load.ts';
 import { runCases } from '../core/owned.ts';
 import { fileSafe, writeRefs } from '../core/refs.ts';
 import type { CigeCase } from '../core/schema.ts';
@@ -31,25 +35,6 @@ import { caseForVariant, expandVariants } from '../core/variants.ts';
 import type { CigeRunnerSelection } from '../core/contract.ts';
 import { AUTO, baseName } from '../core/route.ts';
 import { e2eConfigFor, requireHosted, Router, RunnerError, runnerFor, type ResolvedRunner } from './runners.ts';
-
-/** Set for `e2e run` when its summaries share the directory with another runner's; the e2e reporter suffixes their names. */
-const RUNNER_SUFFIX_ENV = 'CIGE_RUNNER_SUFFIX';
-/** Set for `e2e run` to the file of `auto`'s reasons for the cases it routed to e2e. */
-const RUNNER_SELECTION_ENV = 'CIGE_RUNNER_SELECTION';
-
-/** The env `e2e run` needs for these flags, or undefined when it needs none, so a plain run is called as it always was. */
-function e2eEnv(outputDir: string, suffix: boolean, selections: ReadonlyMap<string, CigeRunnerSelection>): Readonly<Record<string, string>> | undefined {
-  const env: Record<string, string> = {};
-  if (suffix) env[RUNNER_SUFFIX_ENV] = '1';
-  if (selections.size > 0) {
-    mkdirSync(outputDir, { recursive: true });
-    const file = path.join(outputDir, 'runner-selection.json');
-    const cases = Object.fromEntries([...selections].map(([name, selected]) => [name, { runner: 'e2e', reason: selected.reason }]));
-    writeFileSync(file, `${JSON.stringify({ cases }, null, 2)}\n`);
-    env[RUNNER_SELECTION_ENV] = file;
-  }
-  return Object.keys(env).length === 0 ? undefined : env;
-}
 
 /** A case no runner can serve, as the command reports it. */
 function unroutable(testCase: CigeCase, resolved: ResolvedRunner): string {
@@ -62,15 +47,17 @@ Commands:
   run [<id>...] [--runner <name>[,<name>]|auto] [--tag <tag>]... [--variant <v>]
       [--workers <n>] [--retries <n>] [--last-failed] [--dry-run] [-- <e2e run options>]
       Run the cases on their runner (--runner, else the environment's, else
-      the config's). e2e hands off to e2e run --tag; an owned runner such as
-      vibium runs here and writes the summaries. Two runners make a matrix
+      the config's). e2e hands off to e2e run --tag, playwright to playwright
+      test --grep @cige:<id>; an owned runner such as vibium runs here and
+      writes the summaries. Two runners make a matrix
       run: each summary name ends in its runner's. auto picks one runner per
       case: one that enforces its guardrails, wasn't down last time, and can
       replay a passing run, in that order. --dry-run prints each case's
       runner and why, and runs nothing.
   replay <id> [--variant <v>] [--env <name>] [--runner <name>] [-- <e2e run options>]
       Reset the case's environment, then run the case alone: on e2e,
-      e2e run [--config <env config>] --tag cige:<id> --no-cache.
+      e2e run [--config <env config>] --tag cige:<id> --no-cache; on
+      playwright, playwright test --grep @cige:<id> --retries 0.
   rejudge <id> [--variant <v>] [--runner <name>]
       Judge the case's Intent again, as it reads now, on the recording its
       last run stored (vibium), and rewrite its summary.
@@ -85,6 +72,17 @@ Commands:
       and what its runner can't do (a platform, a session, an enforced
       guardrail). --resolve also runs the ref resolvers. Exits 1 on any gap
       unless --warn.
+  compile [<id>...] [--force]
+      Write each case's Playwright spec, <name>.cige.spec.ts beside its
+      .cige.json: one binding stub per step, with its goal and the
+      guardrails, for an agent or a person to fill in. No model call. Without
+      ids, every case no spec binds yet. A spec that exists is left alone:
+      the stubs it lacks are printed, and the exit is 1 (--force rewrites it).
+  healer [--file <path>] [--print]
+      Add the CIGE rule to the healer agent npx playwright init-agents wrote
+      (.claude/agents, .github/agents, .opencode/prompts): read the run
+      summary first, repair only outdated-test-logic, never a product defect.
+      Running it again replaces the rule. --print shows it.
   diff [--base <git ref>] [--json] [--allow-intent]
       Check every .cige.json changed since the base (default origin/main)
       against the field rules, and report any change to the CIGE config or
@@ -106,6 +104,8 @@ export interface CliIo {
   readonly stdout: (text: string) => void;
   readonly stderr: (text: string) => void;
   readonly runE2e: (args: readonly string[], cwd: string, env?: Readonly<Record<string, string>>) => Promise<number>;
+  /** Runs a hosted runner's command (a Node script, such as Playwright's); default a child process with this Node. */
+  readonly runNode?: (script: string, args: readonly string[], cwd: string, env?: Readonly<Record<string, string>>) => Promise<number>;
 }
 
 /** The `e2e` bin a parsed `package.json` declares, when it is the runner's. */
@@ -133,17 +133,35 @@ function e2eBin(): string {
   }
 }
 
+/** Runs a Node script with this Node, its output on ours, and resolves to its exit code. */
+function spawnNode(script: string, args: readonly string[], cwd: string, env?: Readonly<Record<string, string>>): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [script, ...args], { cwd, stdio: 'inherit', ...(env === undefined ? {} : { env: { ...process.env, ...env } }) });
+    child.on('error', reject);
+    child.on('exit', (code, signal) => resolve(code ?? (signal === null ? 1 : 128)));
+  });
+}
+
 const PROCESS_IO: CliIo = {
   cwd: process.cwd(),
   stdout: (text) => process.stdout.write(text),
   stderr: (text) => process.stderr.write(text),
-  runE2e: (args, cwd, env) =>
-    new Promise((resolve, reject) => {
-      const child = spawn(process.execPath, [e2eBin(), ...args], { cwd, stdio: 'inherit', ...(env === undefined ? {} : { env: { ...process.env, ...env } }) });
-      child.on('error', reject);
-      child.on('exit', (code, signal) => resolve(code ?? (signal === null ? 1 : 128)));
-    }),
+  runE2e: (args, cwd, env) => spawnNode(e2eBin(), args, cwd, env),
+  runNode: spawnNode,
 };
+
+/** Starts a hosted runner that declares its own command (`launch`), with the env the reporter reads. */
+async function launchHosted(io: CliIo, loaded: Loaded, runner: CigeRunner, request: Omit<CigeLaunchRequest, 'cwd'>, outputDir: string, suffix: boolean, selections: ReadonlyMap<string, CigeRunnerSelection>): Promise<number> {
+  const launch = runner.launch!({ ...request, cwd: loaded.dir });
+  io.stderr(`cige: ${launch.display}\n`);
+  const env = hostedEnv(runner.name, outputDir, suffix, selections);
+  return (io.runNode ?? spawnNode)(launch.script, launch.args, loaded.dir, env);
+}
+
+/** Absolute: the directory the config's globs resolve against. */
+function rootOf(loaded: Loaded): string {
+  return rootDir(loaded.config.root ?? loaded.dir);
+}
 
 class UsageError extends Error {}
 
@@ -215,7 +233,7 @@ async function replay(io: CliIo, args: readonly string[]): Promise<number> {
   }
   if (values.runner !== undefined && parseRunnerList(values.runner).length !== 1) throw new UsageError('replay runs on one runner');
   // An auto case replays on the runner of its last run, so the replay repeats what failed; --runner auto routes it afresh.
-  const router = new Router(loaded.config, owned(loaded, undefined).outputDir);
+  const router = new Router(loaded.config, owned(loaded, undefined).outputDir, rootOf(loaded));
   const home = await router.resolve(testCase, { ...(values.env === undefined ? {} : { environment: values.env }), force: values.runner === AUTO, reuseLast: values.runner !== AUTO });
   if (home.name === AUTO && (values.runner === undefined || values.runner === AUTO)) throw new UsageError(`auto can't route ${unroutable(testCase, home)}`);
   const runner = await runnerFor(loaded.config, values.runner === undefined || values.runner === AUTO ? home.name : values.runner);
@@ -236,6 +254,17 @@ async function replay(io: CliIo, args: readonly string[]): Promise<number> {
     return result.exitCode;
   }
   requireHosted(runner);
+  if (runner.launch !== undefined) {
+    return launchHosted(
+      io,
+      loaded,
+      runner,
+      { tags: [cigeTag(testCase.id, testCase.variant)], replay: true, ...(name === undefined ? {} : { environment: name }), passthrough },
+      owned(loaded, undefined).outputDir,
+      runner.name !== home.name,
+      selections,
+    );
+  }
   const e2eConfig = e2eConfigFor(loaded.config, runner, name);
   const e2eArgs = [
     'run',
@@ -247,7 +276,7 @@ async function replay(io: CliIo, args: readonly string[]): Promise<number> {
   ];
   io.stderr(`cige: e2e ${e2eArgs.join(' ')}\n`);
   // Off the case's default runner, its summaries take the runner's name, as `cige run` writes them.
-  const env = e2eEnv(owned(loaded, undefined).outputDir, runner.name !== home.name, selections);
+  const env = hostedEnv('e2e', owned(loaded, undefined).outputDir, runner.name !== home.name, selections);
   return env === undefined ? io.runE2e(e2eArgs, loaded.dir) : io.runE2e(e2eArgs, loaded.dir, env);
 }
 
@@ -310,7 +339,7 @@ async function run(io: CliIo, args: readonly string[]): Promise<number> {
   );
   // One group per runner, and per whether its summaries need the runner's name: a matrix run, or a case off its default runner.
   const matrix = explicit !== undefined && explicit.length > 1;
-  const router = new Router(loaded.config, owned(loaded, values.output).outputDir);
+  const router = new Router(loaded.config, owned(loaded, values.output).outputDir, rootOf(loaded));
   const groups = new Map<string, { name: string; suffix: boolean; cases: CigeCase[]; selections: Map<string, CigeRunnerSelection> }>();
   const refused: string[] = [];
   const routes: string[] = [];
@@ -393,6 +422,25 @@ async function runHosted(
 ): Promise<number> {
   requireHosted(runner);
   const environments = [...new Set(group.map((testCase) => testCase.context.environment))];
+  if (runner.launch !== undefined) {
+    const shared = environments.length === 1 ? environments[0] : undefined;
+    return launchHosted(
+      io,
+      loaded,
+      runner,
+      {
+        tags: flags.filtered ? group.map((testCase) => cigeTag(testCase.id, testCase.variant)) : ['cige'],
+        ...(values['last-failed'] === true ? { lastFailed: true } : {}),
+        ...(flags.workers === undefined ? {} : { workers: flags.workers }),
+        ...(flags.retries === undefined ? {} : { retries: flags.retries }),
+        ...(shared === undefined ? {} : { environment: shared }),
+        passthrough,
+      },
+      owned(loaded, values.output).outputDir,
+      flags.suffix,
+      flags.selections,
+    );
+  }
   const e2eConfig = e2eConfigFor(loaded.config, runner, environments.length === 1 ? environments[0] : undefined);
   const tags = flags.filtered ? group.map((testCase) => cigeTag(testCase.id, testCase.variant)) : ['cige'];
   const e2eArgs = [
@@ -405,7 +453,7 @@ async function runHosted(
     ...passthrough,
   ];
   io.stderr(`cige: e2e ${e2eArgs.join(' ')}\n`);
-  const env = e2eEnv(owned(loaded, values.output).outputDir, flags.suffix, flags.selections);
+  const env = hostedEnv('e2e', owned(loaded, values.output).outputDir, flags.suffix, flags.selections);
   return env === undefined ? io.runE2e(e2eArgs, loaded.dir) : io.runE2e(e2eArgs, loaded.dir, env);
 }
 
@@ -420,7 +468,7 @@ async function rejudge(io: CliIo, args: readonly string[]): Promise<number> {
   const loaded = await loadConfig(io.cwd, values.config, false);
   const testCase = findCase(loaded, id, values.variant);
   if (!testCase.intent.judge) throw new UsageError(`case "${id}" turns its judgment off ("judge": false): there is no Intent judgment to repeat`);
-  const resolved = values.runner === undefined ? await new Router(loaded.config, owned(loaded, values.output).outputDir).resolve(testCase, { reuseLast: true }) : { name: values.runner };
+  const resolved = values.runner === undefined ? await new Router(loaded.config, owned(loaded, values.output).outputDir, rootOf(loaded)).resolve(testCase, { reuseLast: true }) : { name: values.runner };
   if (resolved.name === AUTO) throw new UsageError(`auto can't route ${unroutable(testCase, resolved)}`);
   const runner = await runnerFor(loaded.config, resolved.name);
   if (runner.rejudge === undefined || !runner.capabilities.archiveJudge) throw new UsageError(`the ${runner.name} runner can't judge a stored recording; replay the case instead`);
@@ -527,7 +575,7 @@ async function check(io: CliIo, args: readonly string[]): Promise<number> {
   const cases = loadCigeCases(config.cases ?? DEFAULT_CASES, { root: config.root ?? loaded.dir });
   const outputDir = path.resolve(loaded.dir, values.output ?? config.outputDir ?? path.join('.e2e', 'cige'));
   const results: { readonly id: string; readonly file?: string; readonly gaps: readonly CigeGap[]; readonly routed?: { readonly runner: string; readonly reason: string } }[] = [];
-  const router = new Router(config, outputDir);
+  const router = new Router(config, outputDir, rootOf(loaded));
   for (const testCase of cases) {
     const gaps = readinessGaps(testCase, config);
     let routed: { runner: string; reason: string } | undefined;
@@ -536,12 +584,12 @@ async function check(io: CliIo, args: readonly string[]): Promise<number> {
       if (own.name === AUTO) gaps.push({ kind: 'runner', runner: AUTO, detail: own.decision?.reason ?? 'no runner can run it' });
       else {
         if (own.selected !== undefined) routed = { runner: own.name, reason: own.selected.reason };
-        gaps.push(...capabilityGaps(testCase, await runnerFor(config, own.name), config));
+        gaps.push(...capabilityGaps(testCase, await runnerFor(config, own.name), config, { root: rootOf(loaded) }));
       }
     }
     for (const name of explicit ?? []) {
       const runner = await runnerFor(config, name);
-      gaps.push(...capabilityGaps(testCase, runner, config));
+      gaps.push(...capabilityGaps(testCase, runner, config, { root: rootOf(loaded) }));
     }
     if (values.resolve === true && config.refs !== undefined) {
       const { index } = await writeRefs(testCase, { outputDir, refs: config.refs, ...(build === undefined ? {} : { build }) });
@@ -571,6 +619,82 @@ async function check(io: CliIo, args: readonly string[]): Promise<number> {
     );
   }
   return withGaps.length > 0 && values.warn !== true ? 1 : 0;
+}
+
+async function compile(io: CliIo, args: readonly string[]): Promise<number> {
+  const { values, positionals } = parseArgs({ args: [...args], allowPositionals: true, options: { force: { type: 'boolean' }, config: { type: 'string' } } });
+  const loaded = await loadConfig(io.cwd, values.config, true);
+  const configFile = loaded.file!;
+  const root = rootOf(loaded);
+  const cases = loadCigeCases(loaded.config.cases ?? DEFAULT_CASES, { root });
+  for (const id of positionals) {
+    if (!cases.some((testCase) => testCase.id === id)) throw new UsageError(`no CIGE case has the id "${id}"; known: ${cases.map((testCase) => testCase.id).join(', ') || 'none'}`);
+  }
+  const { configImport, boundIds, renderSpec, renderStubs, specPathFor } = await import('../adapters/playwright/scaffold.ts');
+  const { DEFAULT_SPECS, specsBinding } = await import('../adapters/playwright/runner.ts');
+  const configured = loaded.config.runners !== undefined && Object.hasOwn(loaded.config.runners, 'playwright') ? loaded.config.runners.playwright : undefined;
+  const specs = configured !== undefined && 'specs' in configured && Array.isArray(configured.specs) ? (configured.specs as string[]) : DEFAULT_SPECS;
+  const shown = (file: string): string => path.relative(io.cwd, file) || file;
+  let exitCode = 0;
+  let written = 0;
+  for (const testCase of cases) {
+    const existing = specsBinding(testCase.id, root, specs)[0];
+    if (positionals.length > 0 ? !positionals.includes(testCase.id) : existing !== undefined) continue;
+    const target = existing ?? specPathFor(testCase.file ?? path.join(root, `${testCase.id}.cige.json`));
+    if (existing !== undefined && values.force !== true) {
+      const bound = new Set(boundIds(readFileSync(existing, 'utf8')));
+      const needed = testCase.execution.filter((step) => step.kind !== 'use').map((step) => step.id);
+      const missing = needed.filter((id) => !bound.has(id));
+      const extra = [...bound].filter((id) => !needed.includes(id));
+      if (missing.length === 0 && extra.length === 0) {
+        io.stdout(`${shown(existing)}: binds every step of ${testCase.id}\n`);
+        continue;
+      }
+      exitCode = 1;
+      if (extra.length > 0) io.stdout(`${shown(existing)}: binds ${extra.join(', ')}, which ${testCase.id} has no act or verify step for\n`);
+      if (missing.length > 0) io.stdout(`${shown(existing)}: no binding for ${missing.join(', ')}; add to its bindings:\n${renderStubs(testCase, missing)}\n`);
+      continue;
+    }
+    if (existing === undefined && existsSync(target) && values.force !== true) {
+      // A file by that name that binds another case: never overwrite what isn't ours.
+      io.stderr(`cige: ${shown(target)} exists and binds no case ${testCase.id}; pass --force to overwrite it\n`);
+      exitCode = 1;
+      continue;
+    }
+    writeFileSync(target, renderSpec(testCase, configImport(target, configFile)));
+    written += 1;
+    io.stdout(`wrote ${shown(target)}\n`);
+  }
+  if (written === 0 && exitCode === 0 && positionals.length === 0) io.stdout('every case has a spec\n');
+  return exitCode;
+}
+
+async function healer(io: CliIo, args: readonly string[]): Promise<number> {
+  const { values, positionals } = parseArgs({
+    args: [...args],
+    allowPositionals: true,
+    options: { file: { type: 'string', multiple: true }, print: { type: 'boolean' }, output: { type: 'string' }, config: { type: 'string' } },
+  });
+  if (positionals.length > 0) throw new UsageError('healer takes no positional arguments');
+  const loaded = await loadConfig(io.cwd, values.config, false);
+  const summaries = path.relative(loaded.dir, owned(loaded, values.output).outputDir).split(path.sep).join('/') || '.';
+  const { healerBlock, healerFiles, installHealerBlock } = await import('../adapters/playwright/healer.ts');
+  const block = healerBlock(summaries);
+  if (values.print === true) {
+    io.stdout(`${block}\n`);
+    return 0;
+  }
+  const files = values.file === undefined ? healerFiles(loaded.dir) : values.file.map((file) => path.resolve(io.cwd, file));
+  if (files.length === 0) {
+    io.stderr('cige: no healer agent found; generate one with npx playwright init-agents --loop=claude (or vscode, opencode), or pass --file\n');
+    return 1;
+  }
+  for (const file of files) {
+    if (!existsSync(file)) throw new UsageError(`no file at ${file}`);
+    const changed = installHealerBlock(file, block);
+    io.stdout(`${path.relative(io.cwd, file) || file}: ${changed ? 'added the CIGE rule' : 'already has the CIGE rule'}\n`);
+  }
+  return 0;
 }
 
 function diff(io: CliIo, args: readonly string[]): number {
@@ -603,6 +727,8 @@ export async function main(args: readonly string[], io: CliIo = PROCESS_IO): Pro
     if (command === 'env') return await env(io, rest);
     if (command === 'refs') return await refs(io, rest);
     if (command === 'check') return await check(io, rest);
+    if (command === 'compile') return await compile(io, rest);
+    if (command === 'healer') return await healer(io, rest);
     if (command === 'diff') return diff(io, rest);
     throw new UsageError(`unknown command "${command}"`);
   } catch (error) {

@@ -29,7 +29,7 @@ function specifiers(file: string): string[] {
   return [...found.specifiers, ...found.requires, ...typeOnly];
 }
 
-const RUNNERS = /^(e2e|vibium)(\/|$)/;
+const RUNNERS = /^(e2e|vibium|@playwright\/test|playwright|playwright-core)(\/|$)/;
 
 describe('architecture', () => {
   for (const layer of ['core', 'runner']) {
@@ -44,11 +44,23 @@ describe('architecture', () => {
   }
 
   it('keeps each adapter to its own runner', () => {
-    const offending = [
-      ...sources('adapters/e2e').flatMap((file) => specifiers(file).filter((s) => /^vibium(\/|$)/.test(s) || s.includes('/vibium/')).map((s) => `${file} imports ${s}`)),
-      ...sources('adapters/vibium').flatMap((file) => specifiers(file).filter((s) => /^e2e(\/|$)/.test(s) || s.includes('/e2e/')).map((s) => `${file} imports ${s}`)),
-    ];
+    const own: Record<string, RegExp> = { e2e: /^e2e(\/|$)/, vibium: /^vibium(\/|$)/, playwright: /^(@playwright\/test|playwright|playwright-core)(\/|$)/ };
+    const offending = Object.keys(own).flatMap((adapter) =>
+      sources(`adapters/${adapter}`).flatMap((file) =>
+        specifiers(file)
+          .filter((s) => Object.entries(own).some(([other, runner]) => other !== adapter && (runner.test(s) || s.includes(`/${other}/`))))
+          .map((s) => `${file} imports ${s}`),
+      ),
+    );
     expect(offending).toEqual([]);
+  });
+
+  it('keeps the Playwright runner factory free of Playwright, so a config names it before it is installed', () => {
+    const runtime = (file: string) =>
+      [...readFileSync(path.join(SRC, file), 'utf8').matchAll(/^\s*(?:import|export)\s+(?!type\b)[^;]*?from\s+'([^']+)'/gm)].map((match) => match[1]!);
+    for (const file of ['adapters/playwright/runner.ts', 'adapters/playwright/scaffold.ts', 'adapters/playwright/healer.ts']) {
+      expect(runtime(file).filter((specifier) => RUNNERS.test(specifier) || ['./suite.ts', './session.ts', './reporter.ts'].includes(specifier))).toEqual([]);
+    }
   });
 
   it('loads the cige command without importing either runner at startup', () => {

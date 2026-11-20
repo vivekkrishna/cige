@@ -9,9 +9,13 @@ export type {
   CigeActOp,
   CigeCapabilities,
   CigeJudgeOp,
+  CigeLaunch,
+  CigeLaunchRequest,
+  CigeReadinessContext,
   CigeRejudgeInput,
   CigeResolvedEnvironment,
   CigeRunner,
+  CigeRunnerReadiness,
   CigeSession,
   CigeSessionArtifacts,
   CigeStartContext,
@@ -22,6 +26,7 @@ export { executePlan, type CigeHook, type CigeHookInfo, type CigeHooks, type Exe
 export { CigeError, codedError, isCigeError, signalsForCode, type CigeErrorCode, type CigeErrorOptions } from '../core/errors.ts';
 export { planCase, opId, type CigeOp, type CigePhase } from '../core/plan.ts';
 export { classify } from '../core/classify.ts';
+export { denyRequests, type DenyRequest } from '../core/deny-requests.ts';
 export type { CigeFailure, CigeOutcome, CigeSignal, CigeSignalKind } from '../core/signals.ts';
 export type { CigeRunRecord } from '../core/record.ts';
 export {

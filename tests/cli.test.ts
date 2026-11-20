@@ -107,8 +107,8 @@ describe('cige run', () => {
 
   it('refuses an unknown runner, a bad count, and an unknown case', async () => {
     const unknown = io(project());
-    expect(await main(['run', '--runner', 'playwright'], unknown)).toBe(2);
-    expect(unknown.err).toContain('no runner "playwright"; known: e2e, vibium');
+    expect(await main(['run', '--runner', 'stagehand'], unknown)).toBe(2);
+    expect(unknown.err).toContain('no runner "stagehand"; known: e2e, vibium, playwright');
     const count = io(project());
     expect(await main(['run', '--workers', 'two'], count)).toBe(2);
     expect(count.err).toContain('--workers takes a whole number');

@@ -1,10 +1,12 @@
 {
   "name": "e2e-cige",
-  "version": "0.2.1",
-  "description": "CIGE agentic test cases (Context, Intent, Guardrails, Execution) as portable JSON, run on e2e, Vibium, or any runner adapter, with run summaries, replay, and field-rule checks for self-healing agents",
+  "version": "0.3.0",
+  "description": "CIGE agentic test cases (Context, Intent, Guardrails, Execution) as portable JSON, run on e2e, Vibium, Playwright Test, or any runner adapter, with run summaries, replay, and field-rule checks for self-healing agents",
   "keywords": [
     "e2e",
     "vibium",
+    "playwright",
+    "playwright-test",
     "end-to-end",
     "testing",
     "agentic-testing",
@@ -47,6 +49,14 @@
       "types": "./dist/adapters/vibium/index.d.ts",
       "default": "./dist/adapters/vibium/index.js"
     },
+    "./playwright": {
+      "types": "./dist/adapters/playwright/index.d.ts",
+      "default": "./dist/adapters/playwright/index.js"
+    },
+    "./playwright/reporter": {
+      "types": "./dist/adapters/playwright/reporter.d.ts",
+      "default": "./dist/adapters/playwright/reporter.js"
+    },
     "./schema/cige-1.schema.json": "./schema/cige-1.schema.json"
   },
   "bin": {
@@ -70,10 +80,14 @@
     "zod": "4.6.7"
   },
   "peerDependencies": {
+    "@playwright/test": ">=1.56.0 <2",
     "e2e": ">=0.21.0 <1",
     "vibium": ">=26.11.16"
   },
   "peerDependenciesMeta": {
+    "@playwright/test": {
+      "optional": true
+    },
     "e2e": {
       "optional": true
     },
@@ -84,6 +98,7 @@
   "devDependencies": {
     "@ai-sdk/anthropic": "4.0.96",
     "@e2e-dev/web": "0.16.0",
+    "@playwright/test": "1.65.0",
     "@types/node": "26.6.5",
     "ai": "7.0.162",
     "ajv": "8.20.0",

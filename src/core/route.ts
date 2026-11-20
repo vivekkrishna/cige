@@ -7,13 +7,15 @@
  *
  * Deterministic and explained. A runner that can't serve the case is
  * excluded: not available now, a platform it doesn't run, a step kind no
- * plugin registers for it, a saved session it can't restore. The rest rank,
+ * plugin registers for it, a saved session it can't restore, or a reason
+ * of its own (`readiness`: Playwright with no spec binding the case's
+ * steps). The rest rank,
  * in order, by:
  *
  * 1. the fewest guardrails it can only advise, not enforce (safety first);
  * 2. not having failed as infrastructure on its last run of the case;
  * 3. a deterministic replay of its last passing run (no model calls);
- * 4. `auto.prefer` order (default e2e, then Vibium).
+ * 4. `auto.prefer` order (default e2e, then Vibium, then Playwright).
  */
 
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
@@ -29,12 +31,14 @@ import { SUMMARY_SUFFIX, summaryRunner, type CigeRunSummary } from './summary.ts
 export const AUTO = 'auto';
 
 /** The order `auto` prefers runners in when nothing else separates them. */
-export const DEFAULT_PREFER: readonly string[] = ['e2e', 'vibium'];
+export const DEFAULT_PREFER: readonly string[] = ['e2e', 'vibium', 'playwright'];
 
 export interface RouteCandidate {
   readonly name: string;
   readonly capabilities: CigeCapabilities;
   readonly availability: CigeAvailability;
+  /** Why the runner can't run this case, beyond its capabilities: its `readiness` blocking reasons. */
+  readonly blocking?: (testCase: CigeCase) => readonly string[];
 }
 
 /** The latest summary of each case on each runner: base name (`<id>` or `<id>.<variant>`), then runner name. */
@@ -124,6 +128,7 @@ function exclusions<Fixtures>(testCase: CigeCase, candidate: RouteCandidate, con
   }
   for (const kind of missingStepKinds(testCase, config.plugins ?? [], candidate.name)) why.push(`no plugin registers step kind "${kind}" for it`);
   if (testCase.context.session !== undefined && !capabilities.sessions) why.push("can't restore the saved session the case needs");
+  why.push(...(candidate.blocking?.(testCase) ?? []));
   return why;
 }
 

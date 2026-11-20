@@ -13,8 +13,8 @@ each one changes for a different reason:
 | Guardrails | What the agent must never do | Only to get stricter |
 | Execution | The first path to try | Whenever the product's flow changes |
 
-`e2e-cige` runs `.cige.json` cases as e2e tests and writes one run
-summary per result. The `cige` agent skill reads it, classifies the failure,
+`e2e-cige` runs `.cige.json` cases as e2e tests, on Vibium, or as
+Playwright tests, and writes one run summary per result. The `cige` agent skill reads it, classifies the failure,
 and makes only the repair that kind of failure allows.
 
 ## When to use CIGE
@@ -31,7 +31,9 @@ npm install -D e2e-cige e2e
 ```
 
 To run the cases on Vibium instead, or as well, see
-[Run the same cases on Vibium](#run-the-same-cases-on-vibium).
+[Run the same cases on Vibium](#run-the-same-cases-on-vibium). On a
+Playwright Test suite, see
+[Run the same cases on Playwright Test](#run-the-same-cases-on-playwright-test).
 
 ## Write a case
 
@@ -310,6 +312,65 @@ on both and writes their summaries side by side, and `npx cige run
 --runner auto` runs each case on the one that suits it best right now (the
 one that enforces its guardrails, is available, and can replay a passing
 run); add `--dry-run` to see each choice and why.
+
+## Run the same cases on Playwright Test
+
+Your team already runs Playwright Test, so keep it. Each case's Execution
+becomes Playwright code once, and CI runs that code with no model calls.
+Every failure gets a summary that tells Playwright's healer whether it may
+fix it.
+
+```bash
+npm install -D e2e-cige @playwright/test
+npx cige compile checkout      # writes checkout.cige.spec.ts: one stub per step
+```
+
+Fill each stub with the Playwright code for its step, or have an agent
+do it. A `verify` checks with `expect`:
+
+```ts title="tests/checkout.cige.spec.ts"
+import { expect } from '@playwright/test';
+import { cigeTest } from 'e2e-cige/playwright';
+import config from '../cige.config.ts';
+
+cigeTest(config, 'checkout', {
+  e1: async ({ page }) => { await page.getByRole('button', { name: 'Add to cart' }).click(); },
+  e2: async ({ page }) => { await expect(page.getByTestId('total')).toHaveText('$45.00'); },
+});
+```
+
+```ts title="cige.config.ts"
+import { defineCige } from 'e2e-cige/core';
+import { playwrightRunner } from 'e2e-cige/playwright';
+
+export default defineCige({
+  root: new URL('.', import.meta.url),
+  hooks: { orderExists: async ({ request }) => (await request.get('/api/orders/last')).ok() },
+  runners: { playwright: playwrightRunner() },
+  runner: 'playwright',
+});
+```
+
+Add the reporter to `playwright.config.ts`, then run Playwright as usual
+or through `cige`:
+
+```ts
+reporter: [['list'], ['e2e-cige/playwright/reporter', cige]],   // import cige from './cige.config.ts'
+```
+
+```bash
+npx playwright test       # or: npx cige run
+npx cige healer           # after npx playwright init-agents: add the CIGE rule to its healer
+```
+
+The spec file holds the Execution only, so it is what a repair edits.
+The Intent, the Guardrails, and the evidence hooks stay in the case and
+the config, where `cige diff` guards them. Playwright has no agent to
+judge the screen, so prove the Intent with hook evidence and set
+`"judge": false`, or give `playwrightRunner` a `judge`. A guardrail's
+`x-deny-requests` is enforced with `context.route()`. The rest is in
+[docs/playwright.md](docs/playwright.md), and `examples/playwright` is a
+working project.
 
 ## Next
 

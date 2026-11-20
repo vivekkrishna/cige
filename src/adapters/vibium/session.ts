@@ -22,8 +22,11 @@ import path from 'node:path';
 
 import type { CigeSession, CigeSessionArtifacts, CigeStartContext } from '../../core/contract.ts';
 import { CigeError, codedError, isCigeError, signalsForCode } from '../../core/errors.ts';
+import { denyRequests } from '../../core/deny-requests.ts';
 import { renderAgentContext } from '../../core/render.ts';
 import { fillPlaceholders, type CigeCase } from '../../core/schema.ts';
+
+export { denyRequests, type DenyRequest } from '../../core/deny-requests.ts';
 import { checkFailure, runFailure, runnerFailure } from './outcomes.ts';
 import type { VibiumCheckResult, VibiumFixtures, VibiumModelOptions, VibiumModule, VibiumRunResult, VibiumStartOptions } from './types.ts';
 
@@ -36,39 +39,6 @@ export interface VibiumSessionOptions {
   readonly judge?: 'archive' | 'live';
   /** The site under test when the environment names none. */
   readonly baseURL?: string;
-}
-
-/** A guardrail's `x-deny-requests` entry: an optional method, then a Vibium route pattern. */
-export interface DenyRequest {
-  readonly guardrail: string;
-  readonly rule: string;
-  readonly method?: string;
-  readonly pattern: string;
-}
-
-const METHOD = /^(GET|HEAD|POST|PUT|PATCH|DELETE|OPTIONS|CONNECT|TRACE)\s+(\S.*)$/i;
-
-/** Every `x-deny-requests` entry of the case's guardrails, and the problems with any that aren't one. */
-export function denyRequests(testCase: CigeCase): { readonly rules: DenyRequest[]; readonly problems: string[] } {
-  const rules: DenyRequest[] = [];
-  const problems: string[] = [];
-  for (const guardrail of testCase.guardrails) {
-    const value = guardrail.extensions?.['x-deny-requests'];
-    if (value === undefined) continue;
-    if (!Array.isArray(value) || value.some((entry) => typeof entry !== 'string' || entry.trim() === '')) {
-      problems.push(`guardrail ${guardrail.id}: x-deny-requests must be a list of "[METHOD] <url pattern>" strings`);
-      continue;
-    }
-    for (const entry of value as string[]) {
-      const match = METHOD.exec(entry.trim());
-      rules.push(
-        match === null
-          ? { guardrail: guardrail.id, rule: guardrail.rule, pattern: entry.trim() }
-          : { guardrail: guardrail.id, rule: guardrail.rule, method: match[1]!.toUpperCase(), pattern: match[2]! },
-      );
-    }
-  }
-  return { rules, problems };
 }
 
 /** Model settings for the case: the runner's, then its `Context.agent`'s. */

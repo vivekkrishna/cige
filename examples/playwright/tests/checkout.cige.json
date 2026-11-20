@@ -1,0 +1,33 @@
+{
+  "id": "checkout",
+  "Context": {
+    "system": "Example shop (server.mjs)",
+    "environment": "local",
+    "preconditions": [{ "hook": "freshShop", "description": "The shop starts with an empty cart and no orders" }],
+    "facts": ["The test card is 4242 4242 4242 4242", "SAVE10 takes 10% off the subtotal"],
+    "open": "/",
+    "specRef": "SPEC.md#checkout",
+    "buildRef": "CHANGELOG.md"
+  },
+  "Intent": {
+    "statement": "A shopper can check out with the SAVE10 code and get an order with 10% off",
+    "success": ["An order is recorded with code SAVE10", "The order total is 90% of its subtotal"],
+    "failure": ["The order is charged the full subtotal"],
+    "judge": false,
+    "evidence": [{ "id": "order-record", "hook": "orderDiscounted", "description": "The last order has code SAVE10 and a total of 90% of its subtotal" }]
+  },
+  "Guardrails": [
+    {
+      "id": "no-live-payments",
+      "rule": "Never charge the live payments API; pay only through the test payments API",
+      "x-deny-requests": ["POST **/api/payments/live*"]
+    },
+    { "id": "test-card-only", "rule": "Use only the test card 4242 4242 4242 4242" }
+  ],
+  "Execution": [
+    { "id": "e1", "step": "Add the Field Guide to the cart" },
+    { "id": "e2", "step": "Open checkout and apply the discount code SAVE10" },
+    { "id": "e3", "verify": "The total shows $45.00" },
+    { "id": "e4", "step": "Pay with the test card and wait for the order confirmation" }
+  ]
+}

@@ -20,7 +20,7 @@ import type { CigeRunRecord } from './record.ts';
 import { fileSafe } from './refs.ts';
 import type { CigeCase } from './schema.ts';
 import { defaultRunnerName } from './select.ts';
-import { cigeTag } from './tags.ts';
+import { cigeGrep, cigeTag } from './tags.ts';
 
 /** One CIGE run summary: what the `cige` skill reads before it classifies or repairs anything. */
 export interface CigeRunSummary {
@@ -161,6 +161,15 @@ function replayOf<Fixtures>(record: CigeRunRecord, context: SummaryContext<Fixtu
   if (environments === undefined && record.runner.name === 'e2e') {
     return {
       command: ['npx', 'e2e', 'run', ...(config.e2eConfig === undefined ? [] : ['--config', config.e2eConfig]), '--tag', cigeTag(id, variant), '--no-cache', ...record.narrow]
+        .map(shellArg)
+        .join(' '),
+    };
+  }
+  if (environments === undefined && record.runner.name === 'playwright') {
+    const configured = config.runners !== undefined && Object.hasOwn(config.runners, 'playwright') ? config.runners.playwright : undefined;
+    const playwrightConfig = configured !== undefined && 'config' in configured && typeof configured.config === 'string' ? configured.config : undefined;
+    return {
+      command: ['npx', 'playwright', 'test', ...(playwrightConfig === undefined ? [] : ['--config', playwrightConfig]), '--grep', cigeGrep([cigeTag(id, variant)]), '--retries', '0', ...record.narrow]
         .map(shellArg)
         .join(' '),
     };

@@ -21,7 +21,8 @@ export interface LoadOptions {
   readonly root?: CigeRoot;
 }
 
-function rootDir(root: CigeRoot | undefined): string {
+/** A root as an absolute directory: a path, a `file:` URL, or the working directory when unset. */
+export function rootDir(root: CigeRoot | undefined): string {
   if (root === undefined) return process.cwd();
   return root instanceof URL ? fileURLToPath(root) : path.resolve(root);
 }

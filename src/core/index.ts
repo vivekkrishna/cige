@@ -18,7 +18,9 @@ export {
   type CigeRefResolver,
   type CigeRefs,
 } from './config.ts';
-export { CIGE_TAG, cigeTag, tagsOf } from './tags.ts';
+export { CIGE_TAG, cigeGrep, cigeTag, playwrightTag, tagsOf } from './tags.ts';
+export { denyRequests, type DenyRequest } from './deny-requests.ts';
+export { hostedEnv, RUNNER_SELECTION_ENV, RUNNER_SUFFIX_ENV, selectionsFor, suffixRequested } from './hosted.ts';
 export type {
   AnyPlugin,
   CigeActionEvent,
@@ -44,16 +46,20 @@ export { CigeError, isCigeError, signalsForCode, type CigeErrorCode, type CigeEr
 export { executePlan, missingHooks, type CigeHook, type CigeHookInfo, type CigeHooks, type ExecuteOptions } from './execute.ts';
 export type { CigeRunRecord } from './record.ts';
 export { summarize, writeSummaries, type CigeRunSummary, type CigeSummaryCounts } from './summary.ts';
-export { defaultRunnerName, parseRunnerList } from './select.ts';
+export { defaultRunnerName, parseRunnerList, PLAYWRIGHT_PACKAGE } from './select.ts';
 export { AUTO, baseName, DEFAULT_PREFER, lastRunner, readHistory, routeCase, selectionOf, type RouteCandidate, type RouteConsidered, type RouteDecision, type RunHistory } from './route.ts';
 export type {
   CigeActOp,
   CigeAvailability,
   CigeCapabilities,
   CigeJudgeOp,
+  CigeLaunch,
+  CigeLaunchRequest,
+  CigeReadinessContext,
   CigeRejudgeInput,
   CigeResolvedEnvironment,
   CigeRunner,
+  CigeRunnerReadiness,
   CigeRunnerSelection,
   CigeSession,
   CigeSessionArtifacts,

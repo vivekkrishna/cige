@@ -6,13 +6,13 @@
  * reads the case files again rather than anything the run left in memory.
  */
 
-import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import type { FinishedRun, Report, Reporter, ReporterSummary, TestFixtures } from 'e2e';
 
 import { DEFAULT_CASES, type CigeConfig } from '../../core/config.ts';
 import type { CigeRunnerSelection } from '../../core/contract.ts';
+import { selectionsFor, suffixRequested } from '../../core/hosted.ts';
 import { loadCigeCases } from '../../core/load.ts';
 import type { CigeRunRecord } from '../../core/record.ts';
 import type { CigeCase } from '../../core/schema.ts';
@@ -31,36 +31,7 @@ type ReportResult = Report['run']['results'][number];
  */
 export type CigeReporterOptions<Fixtures = TestFixtures> = CigeConfig<Fixtures>;
 
-/**
- * Set by `cige run` when e2e shares the summaries with another runner (a
- * matrix run, or cases whose default runner is another): each summary name
- * gets `.e2e` last, so the runners' summaries sit side by side.
- */
-export const RUNNER_SUFFIX_ENV = 'CIGE_RUNNER_SUFFIX';
-
-/**
- * Set by `cige run` when `auto` routed cases to e2e: the path of a JSON file,
- * `{ "cases": { "<id>[.<variant>]": { "runner": "e2e", "reason": "..." } } }`,
- * whose reasons the summaries record.
- */
-export const RUNNER_SELECTION_ENV = 'CIGE_RUNNER_SELECTION';
-
-/** The `auto` selections for e2e that `cige run` handed this run, by base name. */
-function selectionsFor(): ReadonlyMap<string, CigeRunnerSelection> {
-  const file = process.env[RUNNER_SELECTION_ENV];
-  if (file === undefined || file === '') return new Map();
-  try {
-    const parsed = JSON.parse(readFileSync(file, 'utf8')) as { cases?: Record<string, { runner?: string; reason?: string }> };
-    return new Map(
-      Object.entries(parsed.cases ?? {}).flatMap(([name, entry]) =>
-        entry.runner === 'e2e' && typeof entry.reason === 'string' ? [[name, { by: 'auto' as const, reason: entry.reason }]] : [],
-      ),
-    );
-  } catch {
-    // A selection file that doesn't read changes no verdict; the summaries just don't carry the reason.
-    return new Map();
-  }
-}
+export { RUNNER_SELECTION_ENV, RUNNER_SUFFIX_ENV } from '../../core/hosted.ts';
 
 /** The case id and variant a result's tags name: `cige:<id>`, and `cige:<id>/<variant>` for a variant. */
 function caseOf(result: ReportResult): { readonly id: string; readonly variant?: string } | undefined {
@@ -154,8 +125,8 @@ export function cige<Fixtures extends TestFixtures = TestFixtures>(options: Cige
           : new Map(loadCigeCases(options.cases ?? DEFAULT_CASES, { root: options.root ?? run.projectRoot }).map((testCase) => [testCase.id, testCase]));
       const perCase = new Map<string, number>();
       for (const name of ran) perCase.set(name, (perCase.get(name) ?? 0) + 1);
-      const matrix = process.env[RUNNER_SUFFIX_ENV] === '1';
-      const selections = selectionsFor();
+      const matrix = suffixRequested();
+      const selections = selectionsFor('e2e');
       const records = results.map(({ result, carried: wasCarried }) => {
         const key = caseOf(result)!;
         const loaded = cases.get(key.id);

@@ -3,13 +3,14 @@
 [CIGE](https://www.amazon.science/publications/cige-an-agentic-ai-test-case-standard)
 test cases as portable JSON, for agents that run, classify, and repair
 tests. The CIGE model has no runner in it; adapters run the cases on
-[e2e](https://github.com/tester-army/e2e) and [Vibium](https://vibium.com),
-and any other runner can add one. Both runners are optional peers, so
-install the one you run:
+[e2e](https://github.com/tester-army/e2e), [Vibium](https://vibium.com),
+and [Playwright Test](https://playwright.dev), and any other runner can add
+one. Every runner is an optional peer, so install the one you run:
 
 ```bash
-npm i -D e2e-cige e2e      # cases as e2e tests (hosted: e2e runs the loop)
-npm i -D e2e-cige vibium   # cases on Vibium (owned: cige run runs the loop)
+npm i -D e2e-cige e2e                # cases as e2e tests (hosted: e2e runs the loop)
+npm i -D e2e-cige vibium             # cases on Vibium (owned: cige run runs the loop)
+npm i -D e2e-cige @playwright/test   # cases as Playwright tests, steps compiled to code (hosted)
 ```
 
 On e2e, also install the engine and model packages your e2e config names,
@@ -18,7 +19,8 @@ such as `@e2e-dev/web` and `@ai-sdk/anthropic`.
 The command is `cige`: `npx cige check`, `npx cige diff`, and the rest under
 [Commands](#commands).
 
-Run the cases on e2e or Vibium, or let `auto` pick a runner per case. A
+Run the cases on e2e, Vibium, or Playwright Test, or let `auto` pick a
+runner per case. A
 CIGE case keeps the stable meaning of a test apart from the parts that
 drift:
 
@@ -52,10 +54,13 @@ case, set up the config, and run it. This README is the reference.
 | `e2e-cige/runner` | What an adapter is built from: the runner contract, the shared `executePlan` loop, `CigeError`, and the conformance kit ([docs/adapters.md](docs/adapters.md)) | nothing |
 | `e2e-cige/e2e` | `e2eRunner`, `cigeSuite`, `cige()`, typed for e2e | e2e |
 | `e2e-cige/vibium` | `vibiumRunner`, which loads `vibium` only when a case runs on it | vibium, to run |
-| `cige` | The command: `run`, `replay`, `rejudge`, `env`, `refs`, `check`, `diff` | either runner, to run cases |
+| `e2e-cige/playwright` | `playwrightRunner`, `cigeTest` for a `*.cige.spec.ts` file, the types its bindings take ([docs/playwright.md](docs/playwright.md)) | @playwright/test |
+| `e2e-cige/playwright/reporter` | The Playwright reporter that writes the run summaries | @playwright/test |
+| `cige` | The command: `run`, `replay`, `rejudge`, `env`, `refs`, `check`, `diff`, `compile`, `healer` | a runner, to run cases |
 
-Tested with e2e 0.21.3 and 0.23.1 (peer range `>=0.21.0 <1`) and Vibium
-26.11.16 (`>=26.11.16`), on Node `^22.22.3 || >=24.8.0`.
+Tested with e2e 0.21.3 and 0.23.1 (peer range `>=0.21.0 <1`), Vibium
+26.11.16 (`>=26.11.16`), and `@playwright/test` 1.65.0 (`>=1.56.0 <2`), on
+Node `^22.22.3 || >=24.8.0`.
 
 ## Config
 
@@ -77,9 +82,9 @@ JavaScript, and package.json `imports` rather than tsconfig `paths`.
 | `outputDir` | Where summaries go; default `cige` beside `report.json` |
 | `e2eConfig` | The e2e config the cases run under, when it isn't the nearest `e2e.config.ts`; a replay passes it |
 | `configFile` | This file's path, when it isn't `cige.config.ts` at the project root; the commands a summary prints pass it as `--config` |
-| `runners` | The runners cases can run on, by name: `e2e: e2eRunner({ config })`, `vibium: vibiumRunner({...})`. See [Runners](#runners) |
+| `runners` | The runners cases can run on, by name: `e2e: e2eRunner({ config })`, `vibium: vibiumRunner({...})`, `playwright: playwrightRunner({...})`. See [Runners](#runners) |
 | `runner` | The runner a case runs on when `--runner` and its environment name none, or `auto` |
-| `auto` | `prefer`: the order `auto` breaks ties in; default `['e2e', 'vibium']` |
+| `auto` | `prefer`: the order `auto` breaks ties in; default `['e2e', 'vibium', 'playwright']` |
 
 An environment also takes `runner` (its cases' default runner) and
 `baseURL` (the site under test, for an owned runner). Its `config` is a
@@ -90,7 +95,8 @@ deprecated alias for `e2eRunner({ config })`.
 The case never names a tool: Context names an environment, so one case
 runs anywhere. The runner is picked when the cases run: `--runner`, then
 the environment's `runner`, then the config's `runner`, then the config's
-only runner when it lists one, then e2e when it is installed, then Vibium.
+only runner when it lists one, then e2e when it is installed, then Vibium,
+then Playwright Test.
 
 ```ts
 // cige.config.ts
@@ -109,24 +115,25 @@ export default defineCige({
 });
 ```
 
-| | e2e | Vibium |
-| --- | --- | --- |
-| Mode | Hosted: `cigeSuite` registers the cases, the `cige()` reporter writes summaries | Owned: `cige run` runs each case in its own session and writes summaries |
-| An act step | `agent.act`, with the Context as `agentContext` | `page.run`, with the Context and the step's values in the goal |
-| A verify, a judged evidence item | `agent.assert` | `page.check` |
-| The Intent | `agent.assert` on the screen | `browser.check` on the stopped recording (`judge: 'archive'`), apart from the agent that acted; or `page.check` (`judge: 'live'`) |
-| Repeat runs | Recorded and replayed, no model calls until the app changes | Agentic every run |
-| Platforms | Whatever the targets declare | Web |
-| Evidence | `report.json`, the trace, artifacts | The recording zip, a group per operation |
+| | e2e | Vibium | Playwright Test |
+| --- | --- | --- | --- |
+| Mode | Hosted: `cigeSuite` registers the cases, the `cige()` reporter writes summaries | Owned: `cige run` runs each case in its own session and writes summaries | Hosted: `cigeTest` in a `*.cige.spec.ts` registers a case, `e2e-cige/playwright/reporter` writes summaries |
+| An act step | `agent.act`, with the Context as `agentContext` | `page.run`, with the Context and the step's values in the goal | Its binding: Playwright code, written once (`cige compile` writes the stubs) |
+| A verify | `agent.assert` | `page.check` | Its binding, with `expect` |
+| A judged evidence item | `agent.assert` | `page.check` | The runner's `judge`, your code |
+| The Intent | `agent.assert` on the screen | `browser.check` on the stopped recording (`judge: 'archive'`), apart from the agent that acted; or `page.check` (`judge: 'live'`) | Hook evidence with `"judge": false`, or the runner's `judge` |
+| Repeat runs | Recorded and replayed, no model calls until the app changes | Agentic every run | Bound code: no model calls, ever |
+| Platforms | Whatever the targets declare | Web | Web |
+| Evidence | `report.json`, the trace, artifacts | The recording zip, a group per operation | The trace, screenshots, a `test.step` per operation |
 
-Guardrails reach the acting agent as text on both. What each enforces:
+Guardrails reach the acting agent as text on e2e and Vibium. What each runner enforces:
 
-| Rule | e2e | Vibium |
-| --- | --- | --- |
-| Guardrail prose on every act step | Yes | Yes |
-| `deny.actions`, `deny.summary`, plugin `onAction` | Enforced after every action | Advisory: `run` is one call with no action events |
-| `x-deny-requests: ["POST **/payments*"]` on a guardrail | Advisory | Enforced: `page.route` aborts the request and the step fails as that guardrail's violation |
-| The agent stopping itself | `POLICY_DENIED` citing a guardrail | `run` ends `safety_stop` |
+| Rule | e2e | Vibium | Playwright Test |
+| --- | --- | --- | --- |
+| Guardrail prose on every act step | Yes | Yes | No agent: `cige compile` writes it beside the bindings |
+| `deny.actions`, `deny.summary`, plugin `onAction` | Enforced after every action | Advisory: `run` is one call with no action events | Advisory: no action events |
+| `x-deny-requests: ["POST **/payments*"]` on a guardrail | Advisory | Enforced: `page.route` aborts the request and the step fails as that guardrail's violation | Enforced: `context.route` aborts it, and the step fails as that guardrail's violation |
+| The agent stopping itself | `POLICY_DENIED` citing a guardrail | `run` ends `safety_stop` | No agent |
 
 `cige check` names each rule that is only advisory on the runner a case
 resolves to, with the platforms, sessions, and step kinds it can't serve.
@@ -135,11 +142,13 @@ resolves to, with the platforms, sessions, and step kinds it can't serve.
 `--runner auto`, and each case is routed to one runner just before it
 runs. A runner is left out when it isn't available now (not installed; for
 Vibium, no model, or no key for its provider), doesn't run the case's
-platforms, has no plugin for one of its step kinds, or can't restore its
-session. Of the rest it picks, in order: the one that only advises the
+platforms, has no plugin for one of its step kinds, can't restore its
+session, or gives a reason of its own (Playwright: no spec binds the
+case's steps, or the case is judged on the screen and it has no `judge`).
+Of the rest it picks, in order: the one that only advises the
 fewest guardrails; one that didn't fail as infrastructure on its last run
 of the case; one that can replay its last passing run with no model calls
-(e2e); then `auto.prefer` order (default `['e2e', 'vibium']`). The summary
+(e2e, Playwright); then `auto.prefer` order (default `['e2e', 'vibium', 'playwright']`). The summary
 records why in `runner.selected`, and its replay command names the runner,
 so `cige replay` and `cige rejudge` repeat the run they follow. `cige run
 --dry-run` prints each case's runner and reason without running anything,
@@ -148,7 +157,8 @@ never switches runners inside a case or reruns a failure on another: that
 would hide the stale path or defect the case is there to catch.
 
 A hook gets the runner's fixtures (e2e's test fixtures, Vibium's
-`{ browser, page }`), the case, and `{ runner }`. A plugin's `steps` and
+`{ browser, page }`, Playwright's `{ page, context, request, browser,
+testInfo, baseURL }`), the case, and `{ runner }`. A plugin's `steps` and
 `onAction` serve the runners in its `runners` (default `['e2e']`; `['*']`
 for a step that uses no fixtures); `context`, `classify`, `summarize`, and
 `readiness` serve every runner. Throw a `CigeError` from `e2e-cige` (or
@@ -246,7 +256,11 @@ On Vibium, from `run` and `check` results:
 | `check` `inconclusive` | Absent, `inconclusive-evidence`; `archive-missing-evidence` too when the recording lacked what the judge needed |
 
 Vibium has no recorded path, so it never reports a stale step: a changed
-flow either heals in the run or ends `not_completed`. The routing for
+flow either heals in the run or ends `not_completed`. On Playwright Test
+the step is bound code, so a locator that no longer resolves is
+`outdated-test-logic` and an `expect` in a `verify` that finds the wrong
+value is `product-defect`: the full table is in
+[docs/playwright.md](docs/playwright.md#what-a-failure-means). The routing for
 every runner lives in one function (`classify` in `e2e-cige/core`); an
 adapter only translates its outcomes into neutral signals.
 
@@ -269,6 +283,8 @@ npx cige env <provision|reset|teardown> <environment>
 npx cige refs <id> [--variant <v>] [--build <build>]
 npx cige check [--resolve] [--warn] [--json] [--runner <name>[,<name>]]
 npx cige diff [--base origin/main] [--json] [--allow-intent]
+npx cige compile [<id>...] [--force]
+npx cige healer [--file <path>] [--print]
 ```
 
 Every command takes `--config <file>`; the default is `cige.config.ts` in
@@ -278,11 +294,14 @@ the working directory.
   `e2e run --tag cige` (or one `--tag` per selected case) and exits with
   e2e's code; on Vibium it runs each case here, with `--workers` (default
   1, since hooks often share state), `--retries`, and `--last-failed`
-  (this runner's failed summaries), and exits 1 on any failure.
+  (this runner's failed summaries), and exits 1 on any failure. On
+  Playwright it hands off to `playwright test --grep @cige` (or one
+  `@cige:<id>` per selected case) and exits with Playwright's code.
 - `replay` runs the declared environment's `reset` (it refuses one without
   `reset`; declare a no-op one when it keeps no state), then the case
   alone: on e2e `e2e run --tag cige:<id> --no-cache` with the environment's
-  `config`, exiting with e2e's code; on Vibium, one session. A case whose
+  `config`, exiting with e2e's code; on Playwright `playwright test --grep
+  @cige:<id> --retries 0`; on Vibium, one session. A case whose
   environment is prose runs as is.
 - `rejudge` judges the Intent again, as the case reads now, on the
   recording the case's last Vibium run stored, without a browser, and
@@ -304,6 +323,19 @@ the working directory.
 | `resolver-failed` | With `--resolve`, a resolver threw |
 | `plugin` | A plugin's `readiness` hook named it |
 | `runner` | The case's runner can't serve something it needs, or only advises a guardrail it can't enforce |
+
+- `compile` writes each case's Playwright spec, `<name>.cige.spec.ts`
+  beside its `.cige.json`: a binding stub per `act` and `verify` step with
+  its goal and the guardrails beside it. It makes no model call. Without
+  ids, it compiles every case no spec binds yet. For a spec that exists,
+  it prints the stubs it lacks and exits 1; `--force` rewrites it.
+- `healer` adds the CIGE rule to the healer agent `npx playwright
+  init-agents` wrote. The healer must read the summary first, repair only
+  `outdated-test-logic`, and on a product defect report it, touching
+  neither the test nor the app. Running it again replaces the block.
+  With the rule, Playwright's healer (Claude Sonnet) repaired a renamed
+  button's binding, and on a planted discount bug it reported the defect
+  and changed nothing. Without the rule, it fixed the app's code itself.
 
 ## What `diff` blocks
 
@@ -441,14 +473,19 @@ generated from the loader's schema at build.
 
 ```bash
 npm ci
+npx playwright install chromium   # once: the Playwright adapter's tests drive a real browser
 npm test          # builds first: the end-to-end tests run the built cige command
 npm run typecheck
 ```
 
-The suite runs both runners without a model: e2e for real on an in-memory
-engine with a scripted executor, and Vibium as a scripted stand-in. It
-covers the conformance kit on both adapters, matrix runs, `auto`, replay,
-and rejudge.
+The suite runs every runner without a model: e2e for real on an in-memory
+engine with a scripted executor, Vibium as a scripted stand-in, and
+Playwright Test for real on Chromium with bindings that fail the way plain
+Playwright code does. It covers the conformance kit on all three adapters,
+matrix runs, `auto`, replay, rejudge, `compile`, and `healer`.
+
+`examples/playwright` is a working Playwright project: `npm run build` here,
+then `npm install && npx playwright test` there.
 
 The live tests drive real browsers and a real model, so they cost model
 calls and run only when asked:

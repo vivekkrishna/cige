@@ -1,0 +1,26 @@
+{
+  "id": "login",
+  "Context": {
+    "system": "Example shop (server.mjs)",
+    "environment": "local",
+    "preconditions": [{ "hook": "freshShop", "description": "No one is signed in" }],
+    "open": "/login",
+    "specRef": "SPEC.md#sign-in",
+    "buildRef": "CHANGELOG.md"
+  },
+  "Intent": {
+    "statement": "A returning shopper can sign in as {user}",
+    "success": ["The shop's session API says {user} is signed in"],
+    "judge": false,
+    "evidence": [{ "id": "session", "hook": "signedInAsUser", "description": "GET /api/session answers with the variant's user" }]
+  },
+  "Guardrails": ["Never create a new account"],
+  "Execution": [
+    { "id": "e1", "step": "Sign in as {user} with the password {password}" },
+    { "id": "e2", "verify": "The account page greets {user}" }
+  ],
+  "Variants": [
+    { "id": "ada", "params": { "user": "ada", "password": "lovelace" } },
+    { "id": "grace", "params": { "user": "grace", "password": "hopper" } }
+  ]
+}

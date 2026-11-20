@@ -3,7 +3,7 @@
  * environment, never a tool. In order: `--runner`, the environment's
  * `runner`, the config's `runner`, the config's only runner when it lists
  * one, then e2e when it is installed (the runner every earlier config was
- * written for), then Vibium when it is.
+ * written for), then Vibium when it is, then Playwright Test.
  */
 
 import { existsSync, readFileSync } from 'node:fs';
@@ -25,7 +25,10 @@ export function isInstalled(name: string): boolean {
 }
 
 /** The runners this package ships adapters for. */
-export const BUILTIN_RUNNERS = ['e2e', 'vibium'] as const;
+export const BUILTIN_RUNNERS = ['e2e', 'vibium', 'playwright'] as const;
+
+/** The package the Playwright Test runner is. */
+export const PLAYWRIGHT_PACKAGE = '@playwright/test';
 
 /** The runner a case runs on when no `--runner` is given. */
 export function defaultRunnerName(config: Pick<CigeConfig<never>, 'runner' | 'runners'>, environmentRunner?: string): string {
@@ -35,10 +38,11 @@ export function defaultRunnerName(config: Pick<CigeConfig<never>, 'runner' | 'ru
   if (listed.length === 1) return listed[0]!;
   if (isInstalled('e2e')) return 'e2e';
   if (isInstalled('vibium')) return 'vibium';
+  if (isInstalled(PLAYWRIGHT_PACKAGE)) return 'playwright';
   return 'e2e';
 }
 
-/** The runner names a `--runner` value lists: `e2e`, `vibium`, or `e2e,vibium` for a matrix run. */
+/** The runner names a `--runner` value lists: `e2e`, `vibium`, `playwright`, or `e2e,vibium` for a matrix run. */
 export function parseRunnerList(value: string): string[] {
   const names = value.split(',').map((name) => name.trim()).filter((name) => name !== '');
   return [...new Set(names)];

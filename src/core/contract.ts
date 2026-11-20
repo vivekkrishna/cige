@@ -31,6 +31,12 @@ export interface CigeCapabilities {
   readonly archiveJudge: boolean;
   /** It restores a saved `Context.session`. */
   readonly sessions: boolean;
+  /**
+   * A model agent acts and judges, so `Context.agent` picks one. False for a
+   * runner of bound code (Playwright Test), where `Context.agent` is ignored.
+   * Absent: true.
+   */
+  readonly agents?: boolean;
 }
 
 export type CigeActOp = Extract<CigeOp, { readonly kind: 'act' }>;
@@ -113,11 +119,60 @@ export interface CigeRunner<Fixtures = unknown> {
   /** Judges the Intent against a stored recording. Runners with `archiveJudge` only. */
   rejudge?(input: CigeRejudgeInput): Promise<CigeOutcome>;
   /**
+   * What this runner needs of one case beyond its capabilities: `blocking`
+   * reasons it can't run the case at all (Playwright: no spec binds its
+   * steps), which `auto` routing skips it for and `cige check` reports, and
+   * `advisory` ones it runs the case despite, which `cige check` reports.
+   * Absent: nothing beyond the capabilities.
+   */
+  readiness?(testCase: CigeCase, context: CigeReadinessContext): CigeRunnerReadiness;
+  /**
+   * How `cige run` and `cige replay` start a hosted runner other than e2e:
+   * the Node script of its command and the arguments. Absent on e2e, which
+   * the command starts itself, and on owned runners.
+   */
+  launch?(request: CigeLaunchRequest): CigeLaunch;
+  /**
    * Whether it can run a case right now, without starting anything: its tool
    * installed, a model configured. `auto` routing skips a runner that says no.
    * Absent: always available.
    */
   availability?(): CigeAvailability;
+}
+
+export interface CigeReadinessContext {
+  /** Absolute: the directory the config's globs resolve against. */
+  readonly root: string;
+}
+
+export interface CigeRunnerReadiness {
+  readonly blocking?: readonly string[];
+  readonly advisory?: readonly string[];
+}
+
+/** What a hosted run is asked to do, in CIGE's words; the runner turns it into its own command. */
+export interface CigeLaunchRequest {
+  /** Absolute: the CIGE config's directory, where the command runs. */
+  readonly cwd: string;
+  /** The tags to select: `cige` for every case, else `cige:<id>` or `cige:<id>/<variant>`. */
+  readonly tags: readonly string[];
+  /** One case after a repair: no retries, nothing reused from an earlier run. */
+  readonly replay?: boolean;
+  readonly lastFailed?: boolean;
+  readonly workers?: number;
+  readonly retries?: number;
+  /** The environment the cases run in, when they share one. */
+  readonly environment?: string;
+  /** Options after `--`, passed through as is. */
+  readonly passthrough: readonly string[];
+}
+
+export interface CigeLaunch {
+  /** Absolute: the Node script to run with this Node. */
+  readonly script: string;
+  readonly args: readonly string[];
+  /** How the command reads, for the log line. */
+  readonly display: string;
 }
 
 export interface CigeAvailability {

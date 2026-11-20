@@ -41,7 +41,16 @@ export function myRunner(options: MyOptions = {}): CigeRunner<MyFixtures> {
 config. A hosted adapter, one whose own test runner owns the loop the way
 e2e does, registers the cases with that runner and reads its report back
 into `CigeRunRecord`s for `writeSummaries` (`e2e-cige/core`); see
-`src/adapters/e2e` for the pattern.
+`src/adapters/e2e` and `src/adapters/playwright` for the pattern. Give it
+`launch(request)`, returning the Node script of its command and the
+arguments for the tags, `--last-failed`, workers, and retries `cige run` and
+`cige replay` ask for, and its reporter should honor `RUNNER_SUFFIX_ENV`
+and `selectionsFor(name)` from `e2e-cige/core`, as both hosted adapters do.
+
+`readiness(testCase, { root })` names what the runner needs of a case
+beyond its capabilities. `blocking` reasons make `auto` skip the runner for
+that case and show in `cige check`; `advisory` ones only show in `cige
+check`. Playwright, for one, blocks a case no spec binds.
 
 ## The session
 

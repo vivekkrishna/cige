@@ -8,7 +8,7 @@
  */
 
 import type { CigeConfig } from './config.ts';
-import type { CigeCapabilities } from './contract.ts';
+import type { CigeReadinessContext, CigeRunner } from './contract.ts';
 import { missingStepKinds, servesRunner } from './plugins.ts';
 import type { CigeCase } from './schema.ts';
 
@@ -40,8 +40,9 @@ export interface CigeGap {
  */
 export function capabilityGaps<Fixtures>(
   testCase: CigeCase,
-  runner: { readonly name: string; readonly capabilities: CigeCapabilities },
+  runner: Pick<CigeRunner, 'name' | 'capabilities' | 'readiness'>,
   config: Pick<CigeConfig<Fixtures>, 'plugins'>,
+  context?: CigeReadinessContext,
 ): CigeGap[] {
   const { name, capabilities } = runner;
   const gaps: CigeGap[] = [];
@@ -65,6 +66,13 @@ export function capabilityGaps<Fixtures>(
   if (!capabilities.networkDeny) {
     const advisory = testCase.guardrails.filter((rule) => rule.extensions?.['x-deny-requests'] !== undefined).map((rule) => rule.id);
     if (advisory.length > 0) gap(`${name} can't block requests, so the x-deny-requests of ${advisory.join(', ')} are advisory`);
+  }
+  if (capabilities.agents === false && (testCase.context.agent !== undefined || testCase.variants.some((variant) => variant.agent !== undefined))) {
+    gap(`${name} runs bound code, not an agent: Context.agent is ignored`);
+  }
+  if (context !== undefined && runner.readiness !== undefined) {
+    const { blocking = [], advisory = [] } = runner.readiness(testCase, context);
+    for (const detail of [...blocking, ...advisory]) gap(detail);
   }
   return gaps;
 }
